@@ -11,8 +11,7 @@ den iPhone-Home-Bildschirm legen und funktioniert offline.
 - **SSB & Impfen** – Sprechstundenbedarf, Verordnungsfähigkeit, Impfstoffe, Bezugswege, Regress-Fallen, KVB-Kontakte (Schnellreferenz V1.7).
 - **Abrechnung 2026** – Vorhalte- & Versorgungspauschale: Überblick, Entscheidungsbaum, die 10 Kriterien, Merkhilfe und 8 Fallbeispiele.
 - **Nachschlagen** – Abkürzungen A–Z, GOPs mit Eurowerten, ICD-10-Codes, Fachbegriffe.
-- **Dokumente** – die Original-PDFs zum Öffnen und Teilen.
-- **Globale Suche** über alle Bereiche, automatischer Dark Mode.
+- **Globale Suche** über alle Bereiche, eigene Icon-Sprache, automatischer Dark Mode.
 
 ## Auf dem iPhone installieren
 

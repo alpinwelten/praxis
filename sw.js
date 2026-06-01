@@ -1,7 +1,7 @@
 /* Service Worker – Offline-Betrieb für die Praxis-App
    Strategie: App-Shell cache-first vorgeladen; übrige same-origin GETs
    (z. B. PDFs) werden beim ersten Zugriff in den Laufzeit-Cache gelegt. */
-const VERSION = 'praxis-v3';
+const VERSION = 'praxis-v4';
 const SHELL = [
   './',
   'index.html',

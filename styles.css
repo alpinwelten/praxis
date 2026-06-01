@@ -91,6 +91,9 @@ body {
   font-size: 18px; display: grid; place-items: center; cursor: pointer;
 }
 .header-search-btn:active { background: rgba(255,255,255,0.34); transform: scale(0.94); }
+.header-search-btn svg { width: 20px; height: 20px; }
+.si { display: inline-flex; align-items: center; }
+.si svg { width: 18px; height: 18px; }
 
 main {
   padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px) + 18px);
@@ -103,7 +106,7 @@ main {
 /* Tab-Leiste */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 200;
-  display: grid; grid-template-columns: repeat(5, 1fr);
+  display: grid; grid-template-columns: repeat(4, 1fr);
   background: rgba(251,246,243,0.92);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
@@ -116,7 +119,8 @@ main {
   display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
   color: var(--gray-1); font-family: var(--font);
 }
-.tab .ic { font-size: 21px; line-height: 1; transition: transform .16s ease; }
+.tab .ic { width: 26px; height: 26px; display: grid; place-items: center; transition: transform .16s ease; }
+.tab .ic svg { width: 25px; height: 25px; }
 .tab .lbl { font-size: 11px; font-weight: 600; letter-spacing: -0.2px; }
 .tab.active { color: var(--accent); }
 .tab.active .ic { transform: translateY(-1px) scale(1.08); }
@@ -143,6 +147,14 @@ main {
 .section-body.open { display: block; }
 .chevron { font-size: 20px; color: var(--gray-3); transition: transform .2s, color .2s; flex: none; margin-left: 8px; }
 .chevron.open { transform: rotate(90deg); color: var(--accent); }
+
+/* Icon-Chip in den Abschnitts-Köpfen */
+.sec-title { display: flex; align-items: center; min-width: 0; }
+.sec-ic { width: 32px; height: 32px; border-radius: 10px; background: var(--accent-soft); color: var(--accent);
+  display: inline-grid; place-items: center; margin-right: 11px; flex: none; }
+.sec-ic svg { width: 18px; height: 18px; }
+.sec-ic .num-badge { font-family: var(--font-display); font-weight: 800; font-size: 14px; color: var(--accent); }
+.sec-label { min-width: 0; }
 
 /* ============================================================
    TABELLEN
@@ -262,8 +274,9 @@ mark.search-hl { background: #FFE08A; color: #4A2A00; border-radius: 3px; paddin
 .tile:active { transform: scale(0.97); box-shadow: 0 1px 6px rgba(150,90,110,0.10); }
 .tile .tile-ic {
   width: 48px; height: 48px; border-radius: 15px; display: grid; place-items: center;
-  font-size: 24px; background: var(--accent-soft);
+  font-size: 24px; background: var(--accent-soft); color: var(--accent);
 }
+.tile .tile-ic svg { width: 26px; height: 26px; }
 .tile .tile-t { font-family: var(--font-display); font-size: 15.5px; font-weight: 800; color: var(--text); }
 .tile .tile-d { font-size: 12px; color: var(--gray-1); line-height: 1.38; }
 
