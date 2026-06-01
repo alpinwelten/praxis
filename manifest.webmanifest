@@ -1,0 +1,19 @@
+{
+  "name": "Praxis – MFA-Nachschlagewerk",
+  "short_name": "Praxis",
+  "description": "Schnelles Nachschlagewerk für MFA: Sprechstundenbedarf, Impfen, Abrechnung 2026, GOPs, ICD-10 und Abkürzungen. Bayern/KVB.",
+  "lang": "de",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F2F2F7",
+  "theme_color": "#007AFF",
+  "categories": ["medical", "productivity", "reference"],
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
