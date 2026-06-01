@@ -16,7 +16,7 @@ const SUBTITLE = {
   nachschlagen:'Abkürzungen · GOPs · ICD-10 · Begriffe',
   dokumente:   'Original-Unterlagen als PDF'
 };
-const MODULE_LABEL = { ssb:'SSB & Impfen', abrechnung:'Abrechnung 2026', nachschlagen:'Nachschlagen' };
+const MODULE_LABEL = { ssb:'SSB & Impfen', abrechnung:'Abrechnung 2026', nachschlagen:'Nachschlagen', dokumente:'Dokumente' };
 
 const DOCS = [
   { file:'pdfs/schnellreferenz-ssb-impfen.pdf',         icon:'💉', title:'Schnellreferenz SSB & Impfen', desc:'KVB V1.7 · kompakte Übersicht' },
@@ -41,7 +41,30 @@ function openSection(sectionEl) {
   if (!sectionEl) return;
   const body = sectionEl.querySelector('.section-body');
   const chev = sectionEl.querySelector('.chevron');
-  if (body && !body.classList.contains('open')) { body.classList.add('open'); if (chev) chev.classList.add('open'); }
+  const head = sectionEl.querySelector('.section-header');
+  if (body && !body.classList.contains('open')) {
+    body.classList.add('open'); if (chev) chev.classList.add('open');
+    if (head) head.setAttribute('aria-expanded', 'true');
+  }
+}
+
+// Akkordeon-Kopf umschalten (Maus + Tastatur), inkl. ARIA-Status
+function toggleHeader(h) {
+  const body = h.nextElementSibling, chev = h.querySelector('.chevron');
+  const open = body.classList.toggle('open');
+  if (chev) chev.classList.toggle('open', open);
+  h.setAttribute('aria-expanded', open ? 'true' : 'false');
+}
+
+// Alle Abschnitts-Köpfe als bedienbare Buttons auszeichnen (statisch + dynamisch)
+function enhanceAccordions() {
+  $$('.section-header').forEach(h => {
+    h.setAttribute('role', 'button');
+    h.setAttribute('tabindex', '0');
+    const body = h.nextElementSibling;
+    h.setAttribute('aria-expanded', body && body.classList.contains('open') ? 'true' : 'false');
+    const chev = h.querySelector('.chevron'); if (chev) chev.setAttribute('aria-hidden', 'true');
+  });
 }
 
 function flash(el) {
@@ -176,6 +199,11 @@ function buildSearchIndex() {
   N.begriffe.forEach(e => idx.push(lexEntry(e, 'begriffe', 'Begriff')));
   N.gops.forEach(g => g.items.forEach(e => idx.push(lexEntry(e, 'gops', g.group, e.amount))));
   N.icd.forEach(g => g.items.forEach(e => idx.push(lexEntry(e, 'icd', g.group))));
+  // Dokumente (Titel + Kurzbeschreibung durchsuchbar)
+  DOCS.forEach((d, i) => idx.push({
+    module: 'dokumente', moduleLabel: 'Dokumente',
+    title: d.title, text: d.desc + ' · PDF', viewId: 'dokumente', docIdx: i
+  }));
   SEARCH_INDEX = idx;
 }
 
@@ -225,14 +253,14 @@ function runSearch(qRaw) {
     return;
   }
 
-  const order = ['ssb', 'abrechnung', 'nachschlagen'];
+  const order = ['ssb', 'abrechnung', 'nachschlagen', 'dokumente'];
   let html = '';
   order.forEach(mod => {
     const group = hits.filter(h => h.e.module === mod);
     if (!group.length) return;
     html += `<div class="sr-group">${MODULE_LABEL[mod]} · ${group.length}</div>`;
     group.slice(0, 40).forEach(({ e }) => {
-      const payload = encodeURIComponent(JSON.stringify({ v: e.viewId, a: e.anchor || '', lt: e.lexTab || '', k: e.key || '' }));
+      const payload = encodeURIComponent(JSON.stringify({ v: e.viewId, a: e.anchor || '', lt: e.lexTab || '', k: e.key || '', di: (e.docIdx ?? '') }));
       html += `<button class="sr-item" data-jump="${payload}">
         <div class="t">${esc(e.title)}</div>
         <div class="c">${snippet(e.text, q)}</div>
@@ -251,6 +279,9 @@ function jumpTo(p) {
       if (p.lt) setLexTab(p.lt);
       const f = $('#lex-filter'); f.value = p.k || ''; renderLexikon();
       const first = $('#lex-list .entry'); if (first) { first.scrollIntoView({ block: 'center' }); flash(first); }
+    } else if (p.v === 'dokumente') {
+      const a = $$('#doc-list .doc')[p.di];
+      if (a) { a.scrollIntoView({ block: 'center' }); flash(a); }
     } else if (p.a) {
       const sec = document.getElementById(p.a);
       if (sec) { openSection(sec); sec.scrollIntoView({ block: 'start' }); flash(sec); }
@@ -258,16 +289,20 @@ function jumpTo(p) {
   }, 80);
 }
 
+let searchTrigger = null;
 function openSearch() {
+  searchTrigger = document.activeElement;
   const ov = $('#search-overlay');
-  ov.classList.add('open'); ov.setAttribute('aria-hidden', 'false');
+  ov.classList.add('open'); ov.removeAttribute('inert'); ov.setAttribute('aria-hidden', 'false');
   const inp = $('#search-input'); inp.value = ''; runSearch('');
   setTimeout(() => inp.focus(), 120);
 }
 function closeSearch() {
   const ov = $('#search-overlay');
-  ov.classList.remove('open'); ov.setAttribute('aria-hidden', 'true');
+  if (!ov.classList.contains('open')) return;
+  ov.classList.remove('open'); ov.setAttribute('inert', ''); ov.setAttribute('aria-hidden', 'true');
   $('#search-input').blur();
+  if (searchTrigger && typeof searchTrigger.focus === 'function') { try { searchTrigger.focus(); } catch (e) {} }
 }
 
 /* ============================================================
@@ -275,7 +310,11 @@ function closeSearch() {
    ============================================================ */
 function setLexTab(tab) {
   lexTab = tab;
-  $$('#lex-seg button').forEach(b => b.classList.toggle('active', b.dataset.lex === tab));
+  $$('#lex-seg button').forEach(b => {
+    const on = b.dataset.lex === tab;
+    b.classList.toggle('active', on);
+    b.setAttribute('aria-selected', on ? 'true' : 'false');
+  });
 }
 
 /* ============================================================
@@ -285,6 +324,7 @@ function init() {
   renderAbrechnung();
   renderLexikon();
   renderDokumente();
+  enhanceAccordions();
   buildSearchIndex();
 
   // Tab-Leiste
@@ -295,12 +335,15 @@ function init() {
   // Kacheln auf der Startseite
   $$('[data-goto]').forEach(el => el.addEventListener('click', () => navigateTo(el.dataset.goto)));
 
-  // Akkordeons (Delegation für SSB + Abrechnung)
+  // Akkordeons (Delegation für SSB + Abrechnung) – Maus & Tastatur
   document.body.addEventListener('click', e => {
     const h = e.target.closest('.section-header');
-    if (!h) return;
-    const body = h.nextElementSibling, chev = h.querySelector('.chevron');
-    const open = body.classList.toggle('open'); if (chev) chev.classList.toggle('open', open);
+    if (h) toggleHeader(h);
+  });
+  document.body.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    const h = e.target.closest('.section-header');
+    if (h) { e.preventDefault(); toggleHeader(h); }
   });
 
   // Lexikon
@@ -313,7 +356,6 @@ function init() {
   // Suche öffnen/schließen
   $('#open-search').addEventListener('click', openSearch);
   $('#home-search').addEventListener('click', openSearch);
-  $('#home-search').addEventListener('focus', openSearch);
   $('#search-cancel').addEventListener('click', closeSearch);
   $('#search-input').addEventListener('input', e => runSearch(e.target.value));
   $('#search-results').addEventListener('click', e => {

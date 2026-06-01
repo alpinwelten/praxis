@@ -259,10 +259,11 @@ window.ABRECHNUNG = [
         ["Beratung Diabeteserstdiagnose","03230","128*","7,93 €"]
       ]},
       { t: "table", align: ["l","l","r","r"], head: ["Q3/2026 · keine 03100 mehr","GOP","Punkte","€"], rows: [
-        ["Versichertenpauschale","03005","179","22,18 €"],
+        ["Versichertenpauschale AK 4 (55–74 J.)","03004","179","22,18 €"],
         ["Chronikerpauschale","03220","130","16,10 €"],
         ["DMP-Einschreibung Diabetes (einmalig)","03313","—","extrabudg."]
       ]},
+      { t: "note", html: "Hinweis: Die Schulungsunterlage nennt hier versehentlich GOP 03005 (≥ 75 J.). Altersrichtig für 55–74 J. ist <strong>03004</strong> (179 Pkt · 22,18 €)." },
       { t: "alert", level: "info", title: "Organisations-Tipp", html: "Bei jedem Chroniker mit 03100 im Dauer-Monitoring einen Marker im PVS setzen. Sobald eine zweite Dauerdiagnose oder ein zweites Dauerrezept hinzukommt, wechselt die Abrechnungslogik." },
       { t: "checks", items: [
         { ok: false, html: "Jetzt 2 chronische Diagnosen (Hypertonie + Diabetes)" },
@@ -299,6 +300,8 @@ window.ABRECHNUNG = [
       { t: "p", html: "Gesundheitsversorgungsstärkungsgesetz (GVSG) · Beschluss des Bewertungsausschusses 792. Sitzung vom 19.08.2025 (Vorhaltepauschale) · Beschluss des Bewertungsausschusses vom 11.03.2026 (hausärztliche Versorgungspauschale ab 01.07.2026)." },
       { t: "h3", html: "Primärquellen" },
       { t: "p", html: "Kassenärztliche Bundesvereinigung (kbv.de) · GKV-Spitzenverband · regionale KVen: KV Nordrhein, KV Bayerns, KV Rheinland-Pfalz, KV Bremen, KV Berlin, KV Westfalen-Lippe." },
+      { t: "h3", html: "Fachpublikationen" },
+      { t: "p", html: "Deutsches Ärzteblatt · Der niedergelassene Arzt · Deutsches Arztportal · Virchowbund · Institut für Hausärztliche Fortbildung (IHF) · PKV-Institut · BDI (Berufsverband Deutscher Internistinnen und Internisten)." },
       { t: "h3", html: "Hinweis zur Nutzung" },
       { t: "p", html: "Eurowerte sind Näherungen mit bundesweitem Orientierungs-Punktwert 2026 (ca. 12,4 Cent); regionale Abweichungen möglich. Bei Unklarheiten immer die zuständige Kassenärztliche Vereinigung kontaktieren." },
       { t: "alert", level: "warn", title: "Haftungsausschluss", html: "Dieses Dokument dient der Information und Orientierung. Es ersetzt keine professionelle Abrechnungsberatung durch die zuständige KV, Steuerberater oder Abrechnungsdienstleister. Stand der Recherche: April 2026." }

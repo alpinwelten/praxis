@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Praxis · MFA-Nachschlagewerk</title>
 
 <!-- PWA / iOS Home-Bildschirm -->
@@ -46,7 +46,7 @@
 
     <div class="search-launch">
       <span class="si">🔍</span>
-      <input id="home-search" placeholder="Alles durchsuchen …" readonly inputmode="none">
+      <button id="home-search" class="search-field-btn" aria-label="Alles durchsuchen">Alles durchsuchen …</button>
     </div>
 
     <div class="tiles">
@@ -159,8 +159,8 @@
 
     <div class="alert alert-info">
       <strong>Vollständige SSB-Vereinbarung der KVB</strong>
-      Allgemeiner Teil: <a href="https://www.kvb.de/fileadmin/kvb/Mitglieder/Service/Informationsservice/Informationsmaterial/Verordnung/KVB-BroschuereSprechstundenbedarfsvereinbarung-Juli-2022.pdf">KVB-Broschüre SSB-Vereinbarung Juli 2022</a><br>
-      Aktualisierte Anlage Januar 2026: <a href="https://www.kvb.de/fileadmin/kvb/Mitglieder/Service/Informationsservice/Informationsmaterial/Verordnung/KVB-BroschuereSprechstundenbedarfsvereinbarung-Januar-2026.pdf">KVB-Broschüre SSB Januar 2026</a>
+      Aktuelle Broschüre &amp; Anlagen auf der KVB-Themenseite:
+      <a href="https://www.kvb.de/mitglieder/verordnungen/sprechstundenbedarf">kvb.de/mitglieder/verordnungen/sprechstundenbedarf</a>
     </div>
   </div>
 </div>
@@ -1042,11 +1042,11 @@
   <!-- ============================ NACHSCHLAGEN ============================ -->
   <section class="view" id="view-nachschlagen">
     <div class="view-title"><h1>Nachschlagen</h1><p>Abkürzungen · GOPs · ICD-10 · Begriffe</p></div>
-    <div class="segmented" id="lex-seg" role="tablist">
-      <button class="active" data-lex="abk">Abkürzungen</button>
-      <button data-lex="gops">GOPs</button>
-      <button data-lex="icd">ICD-10</button>
-      <button data-lex="begriffe">Begriffe</button>
+    <div class="segmented" id="lex-seg" role="tablist" aria-label="Kategorie">
+      <button class="active" role="tab" aria-selected="true" data-lex="abk">Abkürzungen</button>
+      <button role="tab" aria-selected="false" data-lex="gops">GOPs</button>
+      <button role="tab" aria-selected="false" data-lex="icd">ICD-10</button>
+      <button role="tab" aria-selected="false" data-lex="begriffe">Begriffe</button>
     </div>
     <div class="filter-wrap">
       <span class="si">🔍</span>
@@ -1079,7 +1079,7 @@
 </nav>
 
 <!-- ============================ SUCH-OVERLAY ============================ -->
-<div class="search-overlay" id="search-overlay" aria-hidden="true">
+<div class="search-overlay" id="search-overlay" role="dialog" aria-modal="true" aria-label="Suche" aria-hidden="true" inert>
   <div class="search-bar">
     <div class="field">
       <span class="si">🔍</span>
