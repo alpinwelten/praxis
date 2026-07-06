@@ -284,7 +284,8 @@ const LEX_CATS = [
   { key: 'abk', label: 'Abkürzung', plural: 'Abkürzungen' },
   { key: 'gops', label: 'GOP', plural: 'GOPs' },
   { key: 'icd', label: 'ICD-10', plural: 'ICD-10' },
-  { key: 'begriffe', label: 'Begriff', plural: 'Fachbegriffe' },
+  { key: 'begriffe', label: 'Abrechnung', plural: 'Abrechnungs- & Praxisbegriffe' },
+  { key: 'med', label: 'Medizin', plural: 'Medizinische Fachbegriffe' },
 ];
 let LEX = [];      // { cat, group, k, v, note, amount, hay, codes:Set }
 let lexCat = 'alle';
@@ -317,17 +318,19 @@ function initLex() {
   const N = window.NACHSCHLAGEN || {};
   const push = (cat, group, e) => LEX.push({
     cat, group: group || '', k: e.k, v: e.v, note: e.note || '', amount: e.amount || '',
-    hay: norm([e.k, e.v, e.note, e.amount].filter(Boolean).join(' ')) + ' ' + dotless(norm(e.k)),
+    // syn: unsichtbare Suchbegriffe (Synonyme, Latein, gängige Falschschreibungen)
+    hay: norm([e.k, e.v, e.note, e.amount, e.syn].filter(Boolean).join(' ')) + ' ' + dotless(norm(e.k)),
     codes: (cat === 'icd' || cat === 'gops') ? expandCodes(e.k) : new Set(),
   });
   (N.abk || []).forEach(e => push('abk', '', e));
   (N.gops || []).forEach(g => g.items.forEach(e => push('gops', g.group, e)));
   (N.icd || []).forEach(g => g.items.forEach(e => push('icd', g.group, e)));
   (N.begriffe || []).forEach(e => push('begriffe', '', e));
+  (window.MEDIZIN || []).forEach(e => push('med', e.group || '', e));
 }
 
 function showLexikon(sub) {
-  const valid = ['abk', 'gops', 'icd', 'begriffe'];
+  const valid = ['abk', 'gops', 'icd', 'begriffe', 'med'];
   lexCat = valid.includes(sub) ? sub : 'alle';
   const stored = sessionStorage.getItem('lexQuery') || '';
   sessionStorage.removeItem('lexQuery');
@@ -345,6 +348,12 @@ function syncLexChips() {
 }
 
 function lexRow(e, q) {
+  // Medizin-Begriffe: Wortmarke statt Code-Chip (lange Begriffe passen nicht in Chips)
+  if (e.cat === 'med') {
+    return `<div class="lex-row lex-row-med">
+      <span class="lex-txt"><b>${hl(e.k, q)}</b><span>${hl(e.v, q)}</span></span>
+    </div>`;
+  }
   const meta = [e.amount, e.note].filter(Boolean).map(esc).join(' · ');
   return `<div class="lex-row">
     <span class="code${e.cat === 'icd' ? ' code-icd' : ''}">${hl(e.k, q)}</span>
@@ -507,6 +516,11 @@ function tokenGroups(qRaw) {
     const alts = new Set([t, dotless(t)]);
     // Flexions-Toleranz: „qualifizierenden“ ⇄ „qualifizierende“
     if (t.length >= 6) { alts.add(t.slice(0, -1)); alts.add(t.slice(0, -2)); }
+    // Kompositum-Toleranz: „Syndesmoseband“ findet „Syndesmose“ (Wortanfang genügt)
+    if (t.length >= 8) {
+      const min = Math.max(6, Math.floor(t.length * 0.6));
+      for (let L = t.length - 3; L >= min; L--) alts.add(t.slice(0, L));
+    }
     const aliasKey = Object.keys(ALIAS).find(k => t === k || (t.length >= 5 && t.startsWith(k)));
     if (aliasKey) ALIAS[aliasKey].forEach(x => alts.add(norm(x)));
     return Array.from(alts).filter(x => x.length >= 2);

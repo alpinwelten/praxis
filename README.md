@@ -20,8 +20,11 @@ Die App ist wie ein Dokument organisiert — Kapitel statt Akkordeons:
   Kapitel als eigene Seite mit Blätter-Navigation.
 - **SSB & Impfen** – Sprechstundenbedarf, Verordnungsfähigkeit, Impfstoffe,
   Bezugswege, Regress-Fallen, KVB-Kontakte (Schnellreferenz V1.7), 10 Kapitel.
-- **Lexikon** – Abkürzungen, GOPs mit Eurowerten, ICD-10-Codes, Fachbegriffe.
-  Ein Filterfeld durchsucht alle vier Kategorien gleichzeitig.
+- **Lexikon** – 420 medizinische Fachbegriffe in 19 Fachgebieten (Anatomie,
+  Krankheitsbilder, Labor, Medikamente, Formulare, Hygiene, Wortbausteine …)
+  plus Abkürzungen, GOPs mit Eurowerten, ICD-10-Codes und Abrechnungsbegriffe.
+  Ein Filterfeld durchsucht alle Kategorien gleichzeitig; Synonyme und gängige
+  Falschschreibungen („Zyndesmose") werden mitgesucht.
 - **Hash-Routing mit History** – die Zurück-Geste/-Taste bleibt in der App,
   jede Ansicht ist verlinkbar, der Home-Button oben links führt immer zum Start.
 
@@ -40,7 +43,8 @@ Veröffentlicht über GitHub Pages. Offline-Betrieb über einen Service Worker
 ## Inhalte aktualisieren
 
 - Abrechnung 2026: `data/abrechnung.js` (Karten mit Block-Typen, siehe Kopfkommentar)
-- Lexikon: `data/nachschlagen.js`
+- Lexikon (Abkürzungen/GOP/ICD/Abrechnung): `data/nachschlagen.js`
+- Medizinische Fachbegriffe: `data/medizin.js` (k = Begriff, v = Erklärung, syn = unsichtbare Suchbegriffe)
 - Such-Synonyme: `data/suche-aliase.js`
 - SSB & Impfen: die `.section`-Blöcke in `index.html`
 - Nach jeder Änderung in `sw.js` die `VERSION` hochzählen (z. B. `praxis-v6`),
