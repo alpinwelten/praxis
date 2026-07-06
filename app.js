@@ -361,7 +361,7 @@ function renderLex() {
   for (const key of cats) {
     const cat = LEX_CATS.find(c => c.key === key);
     let entries = LEX.filter(e => e.cat === key);
-    if (qRaw) entries = entries.filter(e => lexMatch(e, qRaw));
+    if (qRaw) entries = lexFilter(entries, qRaw);
     if (!entries.length) continue;
     html += `<p class="home-label">${esc(cat.plural)}${qRaw ? ' · ' + entries.length : ''}</p>`;
     let lastGroup = null;
@@ -375,13 +375,20 @@ function renderLex() {
 
   if (!html) {
     const other = lexCat !== 'alle' && qRaw
-      ? LEX.filter(e => e.cat !== lexCat && lexMatch(e, qRaw)).length : 0;
+      ? lexFilter(LEX.filter(e => e.cat !== lexCat), qRaw).length : 0;
     html = `<div class="empty">Kein Treffer${qRaw ? ` für „${esc(qRaw)}“` : ''} in dieser Kategorie.` +
       (other ? ` <button class="linklike" id="lex-all-btn">${other} Treffer in allen Kategorien anzeigen</button>` : '') + `</div>`;
   }
   host.innerHTML = html;
   const btn = $('#lex-all-btn');
   if (btn) btn.addEventListener('click', () => { lexCat = 'alle'; syncLexChips(); renderLex(); });
+}
+
+/* Ein einzelnes Zeichen filtert nach Anfangsbuchstabe des Eintrags („E“ → E03.0, EBM, EKG …) */
+function lexFilter(entries, qRaw) {
+  const q1 = norm(qRaw);
+  if (/^[a-z0-9]$/.test(q1)) return entries.filter(e => norm(e.k).startsWith(q1));
+  return entries.filter(e => lexMatch(e, qRaw));
 }
 
 function lexMatch(e, qRaw) {
@@ -507,9 +514,17 @@ function tokenGroups(qRaw) {
 }
 
 function search(qRaw) {
+  const qN = norm(qRaw), qCode = dotless(qN);
+  // Ein einzelnes Zeichen: als Anfangsbuchstabe filtern („E“ → alles, was mit E beginnt)
+  if (/^[a-z0-9]$/.test(qN)) {
+    return INDEX
+      .filter(item => item.titleN.startsWith(qN))
+      .map(item => ({ item, score: item.type === 'lex' ? 10 : 0 }))
+      .sort((a, b) => b.score - a.score || a.item.titleN.localeCompare(b.item.titleN, 'de'))
+      .slice(0, 30);
+  }
   const groups = tokenGroups(qRaw);
   if (!groups.length) return [];
-  const qN = norm(qRaw), qCode = dotless(qN);
   const hits = [];
   for (const item of INDEX) {
     let ok = true, score = 0;
@@ -581,7 +596,7 @@ function leaveSuche() {
 function renderSearch() {
   const q = $('#q').value.trim();
   const host = $('#search-results');
-  if (q.length < 2) {
+  if (q.length < 1) {
     host.innerHTML = `<div class="view-head"><h1>Suche</h1><p>Tippe einen ICD-Code (E06.3), eine GOP (03100), eine Abkürzung oder ein Stichwort — auch „Blutdruck“ oder „Gicht“ funktionieren.</p></div>
       <p class="home-label">Direkt hinspringen</p>` + shortcutChips();
     return;
