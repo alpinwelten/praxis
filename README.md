@@ -6,12 +6,24 @@ den iPhone-Home-Bildschirm legen und funktioniert offline.
 
 **Live:** https://alpinwelten.github.io/praxis/
 
-## Inhalt
+## Aufbau (Shell v2, Juli 2026)
 
-- **SSB & Impfen** – Sprechstundenbedarf, Verordnungsfähigkeit, Impfstoffe, Bezugswege, Regress-Fallen, KVB-Kontakte (Schnellreferenz V1.7).
-- **Abrechnung 2026** – Vorhalte- & Versorgungspauschale: Überblick, Entscheidungsbaum, die 10 Kriterien, Merkhilfe und 8 Fallbeispiele.
-- **Nachschlagen** – Abkürzungen A–Z, GOPs mit Eurowerten, ICD-10-Codes, Fachbegriffe.
-- **Globale Suche** über alle Bereiche, eigene Icon-Sprache, automatischer Dark Mode.
+Die App ist wie ein Dokument organisiert — Kapitel statt Akkordeons:
+
+- **Startseite** mit der Karte „Die 4 qualifizierenden Diagnosen" (E03.x/E06.3,
+  E78.x, I10.00/I10.90, M10.x), Schnellzugriffen und den 3 Merkzahlen 2026.
+- **Permanente Suche im Header** — auf jeder Seite. Fehlertolerant: findet
+  ICD-Codes mit und ohne Punkt („E063"), Einzelcodes aus Bereichen („E78.2"),
+  Mehrwort-Anfragen und Synonyme („Blutdruck" → Hypertonie).
+- **Abrechnung 2026** – Vorhalte- & Versorgungspauschale: Überblick,
+  Entscheidungsbaum, die 10 Kriterien, Merkhilfe und 8 Fallbeispiele — jedes
+  Kapitel als eigene Seite mit Blätter-Navigation.
+- **SSB & Impfen** – Sprechstundenbedarf, Verordnungsfähigkeit, Impfstoffe,
+  Bezugswege, Regress-Fallen, KVB-Kontakte (Schnellreferenz V1.7), 10 Kapitel.
+- **Lexikon** – Abkürzungen, GOPs mit Eurowerten, ICD-10-Codes, Fachbegriffe.
+  Ein Filterfeld durchsucht alle vier Kategorien gleichzeitig.
+- **Hash-Routing mit History** – die Zurück-Geste/-Taste bleibt in der App,
+  jede Ansicht ist verlinkbar, der Home-Button oben links führt immer zum Start.
 
 ## Auf dem iPhone installieren
 
@@ -22,13 +34,17 @@ den iPhone-Home-Bildschirm legen und funktioniert offline.
 ## Technik
 
 Reine statische Seite (HTML/CSS/JS), keine Server, keine Datenbank, kein Tracking.
-Veröffentlicht über GitHub Pages. Offline-Betrieb über einen Service Worker.
+Veröffentlicht über GitHub Pages. Offline-Betrieb über einen Service Worker
+(network-first mit 3,5-s-Timeout, danach Cache).
 
 ## Inhalte aktualisieren
 
-Inhalte liegen in `data/abrechnung.js` und `data/nachschlagen.js`; die SSB-&-Impfen-Abschnitte
-direkt in `index.html`. Nach einer Änderung in `sw.js` die `VERSION` hochzählen (z. B. `praxis-v2`),
-damit Geräte die neue Fassung laden.
+- Abrechnung 2026: `data/abrechnung.js` (Karten mit Block-Typen, siehe Kopfkommentar)
+- Lexikon: `data/nachschlagen.js`
+- Such-Synonyme: `data/suche-aliase.js`
+- SSB & Impfen: die `.section`-Blöcke in `index.html`
+- Nach jeder Änderung in `sw.js` die `VERSION` hochzählen (z. B. `praxis-v6`),
+  damit Geräte die neue Fassung laden.
 
 ## Hinweis
 
