@@ -1,6 +1,6 @@
 /* ============================================================
    PRAXIS – MFA-Nachschlagewerk
-   Designsystem „Klinisch ruhig“: Papierweiß, Tinte, ein Teal-Akzent,
+   Designsystem „Klinisch ruhig“: Papierweiß, Tinte, ein Rosé-Akzent (Markenfarbe),
    Ampelfarben nur funktional (wie in der PDF-Praxishilfe).
    Kapitelseiten statt Akkordeons · permanente Suche · Dark Mode.
    ============================================================ */
@@ -13,9 +13,9 @@
   --line: #E6E4DE;
   --line-strong: #D8D5CD;
 
-  --accent: #0F766E;
-  --accent-ink: #0B5952;
-  --accent-soft: #E2EFED;
+  --accent: #B8455A;          /* Koralle-Rosé, Markenfarbe des App-Icons */
+  --accent-ink: #993048;
+  --accent-soft: #F8E8EC;
   --accent-contrast: #FFFFFF;
 
   --ok: #1B7A46;      --ok-bg: #E7F3EB;
@@ -45,10 +45,10 @@
     --line: #2B2F34;
     --line-strong: #3A3F45;
 
-    --accent: #4FC3B8;
-    --accent-ink: #7ED8CF;
-    --accent-soft: #14332F;
-    --accent-contrast: #0E1B19;
+    --accent: #E88BA0;
+    --accent-ink: #F09CB0;
+    --accent-soft: #3A1D26;
+    --accent-contrast: #2A1218;
 
     --ok: #5BC98A;      --ok-bg: #16291D;
     --warn: #E2B65C;    --warn-bg: #2E2413;
