@@ -515,10 +515,18 @@ function tokenGroups(qRaw) {
 
 function search(qRaw) {
   const qN = norm(qRaw), qCode = dotless(qN);
-  // Ein einzelnes Zeichen: als Anfangsbuchstabe filtern („E“ → alles, was mit E beginnt)
+  // Ein einzelnes Zeichen: als Anfangsbuchstabe filtern („E“ → alles, was mit E beginnt).
+  // Gleichnamige Blöcke desselben Kapitels nur einmal listen.
   if (/^[a-z0-9]$/.test(qN)) {
+    const seen = new Set();
     return INDEX
-      .filter(item => item.titleN.startsWith(qN))
+      .filter(item => {
+        if (!item.titleN.startsWith(qN)) return false;
+        const key = item.type + '|' + (item.cat || '') + '|' + item.titleN;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
       .map(item => ({ item, score: item.type === 'lex' ? 10 : 0 }))
       .sort((a, b) => b.score - a.score || a.item.titleN.localeCompare(b.item.titleN, 'de'))
       .slice(0, 30);
