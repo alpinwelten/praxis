@@ -402,7 +402,7 @@ function lexFilter(entries, qRaw) {
 
 function lexMatch(e, qRaw) {
   return tokenGroups(qRaw).every(alts =>
-    alts.some(t => hasTok(e.hay, t) || e.codes.has(t) || codePrefix(e, t)));
+    alts.some(a => (a.strict ? hasTok : hasTokStart)(e.hay, a.s) || e.codes.has(a.s) || codePrefix(e, a.s)));
 }
 function codePrefix(e, t) {
   if (!/^[a-z]\d/.test(t)) return false;
@@ -499,13 +499,23 @@ function jumpToAnchor(hash, sel) {
 }
 
 /* ============================== Suche ============================== */
-/* Kurze Tokens (< 4 Zeichen, z. B. „au“, „rr“, „qz“) nur an Wortgrenzen matchen,
-   sonst trifft „au“ jede „Pauschale“. Längere Tokens als Substring. */
-const tokRe = {};
-function hasTok(hay, t) {
+/* Kurze Tokens (< 4 Zeichen) differenziert matchen:
+   - Nutzereingaben wie „sy“ zählen als WORTANFANG („sy“ → Syndesmose), sonst
+     bricht die Suche beim Tippen zwischen 1 und 4 Buchstaben ein.
+   - Kurze Synonym-Aliase wie „au“/„rr“ nur als GANZES Wort, sonst trifft
+     „au“ jede „Pauschale“. Längere Tokens als Substring. */
+const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const tokReWord = {}, tokReStart = {};
+function hasTok(hay, t) {          // ganzes Wort (strenge Aliase)
   if (t.length >= 4) return hay.includes(t);
-  let re = tokRe[t];
-  if (!re) re = tokRe[t] = new RegExp('(^|[^a-z0-9])' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])');
+  let re = tokReWord[t];
+  if (!re) re = tokReWord[t] = new RegExp('(^|[^a-z0-9])' + escRe(t) + '($|[^a-z0-9])');
+  return re.test(hay);
+}
+function hasTokStart(hay, t) {     // Wortanfang (Nutzereingabe)
+  if (t.length >= 4) return hay.includes(t);
+  let re = tokReStart[t];
+  if (!re) re = tokReStart[t] = new RegExp('(^|[^a-z0-9])' + escRe(t));
   return re.test(hay);
 }
 
@@ -513,17 +523,19 @@ function tokenGroups(qRaw) {
   const ALIAS = window.SUCHE_ALIASE || {};
   const tokens = norm(qRaw).split(/[\s,;]+/).filter(t => t.length >= 2);
   return tokens.map(t => {
-    const alts = new Set([t, dotless(t)]);
+    const alts = new Map(); // Text -> strict (true = nur ganzes Wort)
+    const add = (s, strict) => { if (s.length >= 2 && !alts.has(s)) alts.set(s, strict); };
+    add(t, false); add(dotless(t), false);
     // Flexions-Toleranz: „qualifizierenden“ ⇄ „qualifizierende“
-    if (t.length >= 6) { alts.add(t.slice(0, -1)); alts.add(t.slice(0, -2)); }
+    if (t.length >= 6) { add(t.slice(0, -1), false); add(t.slice(0, -2), false); }
     // Kompositum-Toleranz: „Syndesmoseband“ findet „Syndesmose“ (Wortanfang genügt)
     if (t.length >= 8) {
       const min = Math.max(6, Math.floor(t.length * 0.6));
-      for (let L = t.length - 3; L >= min; L--) alts.add(t.slice(0, L));
+      for (let L = t.length - 3; L >= min; L--) add(t.slice(0, L), false);
     }
     const aliasKey = Object.keys(ALIAS).find(k => t === k || (t.length >= 5 && t.startsWith(k)));
-    if (aliasKey) ALIAS[aliasKey].forEach(x => alts.add(norm(x)));
-    return Array.from(alts).filter(x => x.length >= 2);
+    if (aliasKey) ALIAS[aliasKey].forEach(x => add(norm(x), true));
+    return Array.from(alts, ([s, strict]) => ({ s, strict }));
   }).filter(g => g.length);
 }
 
@@ -552,10 +564,11 @@ function search(qRaw) {
     let ok = true, score = 0;
     for (const alts of groups) {
       let matched = 0;
-      for (const t of alts) {
+      for (const a of alts) {
+        const t = a.s, fits = a.strict ? hasTok : hasTokStart;
         if (item.codes.has(t)) { matched = Math.max(matched, 40); break; }
-        if (hasTok(item.titleN, t)) { matched = Math.max(matched, 25); }
-        else if (hasTok(item.hay, t)) { matched = Math.max(matched, 8); }
+        if (fits(item.titleN, t)) { matched = Math.max(matched, 25); }
+        else if (fits(item.hay, t)) { matched = Math.max(matched, 8); }
         else if (/^[a-z]\d/.test(t)) {
           // „E78.2“ ⊂ Bereich E78.0–E78.5 · „E03.2“ → Familie E03 (Code ohne Punkt = Familie)
           for (const c of item.codes) if (c.startsWith(t) || (!c.includes('.') && c.length >= 3 && t.startsWith(c))) { matched = Math.max(matched, 20); break; }
