@@ -492,6 +492,9 @@ td .dx { color: var(--crit); }          /* „gesperrt“ in Abrechnungstabellen
 }
 .lex-group .lex-row:first-child { border-top: 0; }
 .lex-row .code { flex: none; min-width: 74px; text-align: center; }
+
+/* Medizin-Begriffe: Wortmarke über der Erklärung statt Code-Chip */
+.lex-row-med .lex-txt b { display: block; font-size: 15px; margin-bottom: 1px; }
 .lex-txt { flex: 1; min-width: 0; font-size: 14px; line-height: 1.45; }
 .lex-txt small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
 

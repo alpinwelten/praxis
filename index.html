@@ -101,7 +101,7 @@
       </a>
       <a class="module-row" href="#/lexikon">
         <span class="module-num">03</span>
-        <span class="module-txt"><b>Lexikon</b><small>Abkürzungen, GOPs mit €, ICD-10, Fachbegriffe</small></span>
+        <span class="module-txt"><b>Lexikon</b><small>Medizinische Fachbegriffe, Abkürzungen, GOPs mit €, ICD-10</small></span>
         <span class="row-ch" aria-hidden="true">›</span>
       </a>
     </div>
@@ -1063,7 +1063,7 @@
     <div class="view-head">
       <p class="eyebrow">Modul 03</p>
       <h1>Lexikon</h1>
-      <p>Ein Suchfeld für alles: Abkürzungen, GOPs, ICD-10 und Fachbegriffe.</p>
+      <p>Ein Suchfeld für alles: Medizin-Begriffe, Abkürzungen, GOPs, ICD-10 und Abrechnung.</p>
     </div>
     <div class="filter-wrap">
       <svg class="si" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5" fill="none" stroke="currentColor" stroke-width="2"/><line x1="15.5" y1="15.5" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
@@ -1071,10 +1071,11 @@
     </div>
     <div class="chips" id="lex-chips" role="group" aria-label="Kategorie eingrenzen">
       <button class="chip active" aria-pressed="true" data-cat="alle">Alle</button>
+      <button class="chip" aria-pressed="false" data-cat="med">Medizin</button>
       <button class="chip" aria-pressed="false" data-cat="abk">Abkürzungen</button>
       <button class="chip" aria-pressed="false" data-cat="gops">GOP</button>
       <button class="chip" aria-pressed="false" data-cat="icd">ICD-10</button>
-      <button class="chip" aria-pressed="false" data-cat="begriffe">Begriffe</button>
+      <button class="chip" aria-pressed="false" data-cat="begriffe">Abrechnung</button>
     </div>
     <div id="lex-list"></div>
     <div class="app-footer">Abkürzungsjournal Hausarzt 2026 · Revision 1 · Stand April 2026 · ohne Gewähr</div>
@@ -1110,6 +1111,7 @@
 <script src="data/abrechnung.js"></script>
 <script src="data/nachschlagen.js"></script>
 <script src="data/suche-aliase.js"></script>
+<script src="data/medizin.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
