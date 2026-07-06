@@ -703,5 +703,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initEvents();
   if (!location.hash) location.replace('#/start');
   route();
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Neue Version übernimmt die Kontrolle → einmal neu laden, damit
+    // Inhalte sofort ankommen (iOS hält PWAs sonst tagelang im Speicher).
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController) location.reload();
+      hadController = true;
+    });
+  }
 });
