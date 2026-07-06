@@ -2,7 +2,7 @@
    Strategie: App-Shell vorgeladen; HTML/JS/CSS network-first mit kurzem
    Timeout (bei schlechtem Praxis-WLAN antwortet sofort der Cache),
    übrige same-origin GETs cache-first mit Laufzeit-Cache. */
-const VERSION = 'praxis-v10';
+const VERSION = 'praxis-v11';
 const NETWORK_TIMEOUT_MS = 3500;
 const SHELL = [
   './',
