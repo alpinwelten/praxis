@@ -1,406 +1,670 @@
-/* ============================================================
-   PRAXIS – App-Logik
-   Navigation · Akkordeons · Rendering (Abrechnung/Lexikon)
-   · eigenes SVG-Icon-System · globale Suche · PWA / Service Worker
-   ============================================================ */
+/* Praxis – MFA-Nachschlagewerk
+   Shell v2: Hash-Routing (Zurück-Geste funktioniert), Kapitelseiten statt Akkordeons,
+   permanente Suche im Header mit Normalisierung, Synonymen und ICD-Bereichs-Expansion.
+   Inhalte: data/abrechnung.js, data/nachschlagen.js, SSB-Sektionen in index.html. */
 'use strict';
 
-const $  = (s, r = document) => r.querySelector(s);
-const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
-const esc = (s) => String(s).replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]));
+/* ============================== Helfer ============================== */
+const $  = s => document.querySelector(s);
+const $$ = s => Array.from(document.querySelectorAll(s));
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
 
-/* ============================================================
-   ICONS – eigene Linien-Icons (stroke = currentColor)
-   ============================================================ */
-const ICON_PATHS = {
-  home:        '<path d="M3 10.7 12 3l9 7.7"/><path d="M5 9.5V20a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9.5"/><path d="M9.5 21v-6h5v6"/>',
-  syringe:     '<path d="m18 2 4 4"/><path d="m17 7 3-3"/><path d="M19 9 8.7 19.3a1 1 0 0 1-1.4 0l-2.6-2.6a1 1 0 0 1 0-1.4L15 5"/><path d="m9 11 4 4"/><path d="m5 19-2 2"/>',
-  calculator:  '<rect x="4" y="2" width="16" height="20" rx="2.5"/><path d="M8 6h8"/><path d="M8 11h.01"/><path d="M12 11h.01"/><path d="M16 11h.01"/><path d="M8 15h.01"/><path d="M12 15h.01"/><path d="M16 15h.01"/><path d="M8 19h.01"/><path d="M12 19h.01"/>',
-  book:        '<path d="M12 7v14"/><path d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"/>',
-  shield:      '<path d="M12 22s8-3.5 8-9.5V5l-8-3-8 3v7.5c0 6 8 9.5 8 9.5Z"/><path d="m9 12 2 2 4-4"/>',
-  sparkles:    '<path d="M12 3l1.7 4.6L18 9l-4.3 1.4L12 15l-1.7-4.6L6 9z"/><path d="M18 14l.8 2.2L21 17l-2.2.8L18 20l-.8-2.2L15 17z"/>',
-  search:      '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
-  zap:         '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
-  'list-checks':'<path d="m3.5 6 1.4 1.4L7.5 5"/><path d="M11 6h9"/><path d="m3.5 12 1.4 1.4L7.5 11"/><path d="M11 12h9"/><path d="m3.5 18 1.4 1.4L7.5 17"/><path d="M11 18h9"/>',
-  'file-text': '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6"/><path d="M9 13h6"/><path d="M9 17h6"/>',
-  table:       '<rect x="3" y="3" width="18" height="18" rx="2.5"/><path d="M3 9h18"/><path d="M3 15h18"/><path d="M9 9v12"/>',
-  alert:       '<path d="M10.3 3.2 1.8 18a2 2 0 0 0 1.7 3h16.9a2 2 0 0 0 1.7-3L13.7 3.2a2 2 0 0 0-3.4 0Z"/><path d="M12 9v4.5"/><path d="M12 17.5h.01"/>',
-  scale:       '<path d="m16 16 3-8 3 8c-2 1.5-4 1.5-6 0"/><path d="m2 16 3-8 3 8c-2 1.5-4 1.5-6 0"/><path d="M7 21h10"/><path d="M12 3v18"/><path d="M3 7h3c2 0 5-1 6-2 1 1 4 2 6 2h3"/>',
-  'arrow-lr':  '<path d="M8 3 4 7l4 4"/><path d="M4 7h16"/><path d="m16 21 4-4-4-4"/><path d="M20 17H4"/>',
-  hash:        '<path d="M4 9h16"/><path d="M4 15h16"/><path d="M10 3 8 21"/><path d="M16 3l-2 18"/>',
-  phone:       '<path d="M13.8 10.2a8 8 0 0 0 4 4l1.4-1.7a1 1 0 0 1 1-.3c.8.3 1.6.4 2.3.5a1 1 0 0 1 .9 1V18a2 2 0 0 1-2.2 2A18 18 0 0 1 4 5.2 2 2 0 0 1 6 3h2.8a1 1 0 0 1 1 .9c.1.8.3 1.6.5 2.3a1 1 0 0 1-.3 1Z"/>',
-  'git-branch':'<line x1="6" y1="3" x2="6" y2="15"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="6" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>',
-  'check-circle':'<circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.4 2.4L15.5 9.5"/>',
-  pin:         '<path d="M12 17v5"/><path d="M9 10.8V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v5.8a2 2 0 0 0 .6 1.4l1.2 1.2a1 1 0 0 1-.7 1.7H7.9a1 1 0 0 1-.7-1.7l1.2-1.2a2 2 0 0 0 .6-1.4Z"/>',
-  bookmark:    '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z"/>'
-};
-
-function iconSvg(name) {
-  const p = ICON_PATHS[name];
-  if (!p) return '';
-  return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+function norm(s) {
+  return String(s).toLowerCase()
+    .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss')
+    .replace(/[„“”‚‘’]/g, '"').replace(/[–—]/g, '-')
+    .replace(/\s+/g, ' ').trim();
 }
-// Inhalt eines Icon-Chips: Nummer (num:N) oder Icon
-function chipInner(name) {
-  if (name && name.indexOf('num:') === 0) return `<span class="num-badge">${esc(name.slice(4))}</span>`;
-  return iconSvg(name);
+/* Codes zusätzlich ohne Punkt auffindbar machen: "e06.3" -> "e063" */
+function dotless(s) { return s.replace(/(\d)\.(\d)/g, '$1$2'); }
+function stripTags(html) {
+  const d = document.createElement('div');
+  d.innerHTML = html;
+  // Tabellenzellen/Zeilen nicht zusammenkleben lassen:
+  d.querySelectorAll('td,th,li,br,tr,p,div').forEach(el => el.after(' '));
+  return d.textContent.replace(/\s+/g, ' ').trim();
+}
+function stripEmoji(s) {
+  return s.replace(/^[^A-Za-zÄÖÜäöü0-9]+\s*/u, '').trim();
 }
 
-const TAB_ICON = { home: 'home', ssb: 'syringe', abrechnung: 'calculator', nachschlagen: 'book' };
-const SSB_ICON = {
-  aktualitaet: 'zap', 'ssb-grundlagen': 'list-checks', 'ssb-rezept': 'file-text', 'ssb-tabelle': 'table',
-  'ssb-fallen': 'alert', 'impf-grundlagen': 'scale', bezugsweg: 'arrow-lr', 'impf-tabelle': 'syringe',
-  abrechnung: 'hash', kontakte: 'phone'
-};
-const AB_ICON = { 'ab-ueberblick': 'scale', 'ab-baum': 'git-branch', 'ab-kriterien': 'check-circle', 'ab-merkhilfe': 'pin', 'ab-quellen': 'bookmark' };
-function abIconFor(id) { return id.indexOf('ab-fall') === 0 ? 'num:' + id.slice(7) : (AB_ICON[id] || 'bookmark'); }
+/* ============================== Routing ============================== */
+/* Routen: #/start · #/abrechnung[/kapitel] · #/ssb[/kapitel] · #/lexikon[/kategorie] · #/suche */
+const scrollPos = {};   // Hash -> Scroll-Y
+let currentHash = null;
+let pendingAnchor = null; // { hash, sel } für Sprung aus Suchtreffern
+let searchReturnHash = '#/start';
 
-const SUBTITLE = {
-  home:        'MFA-Nachschlagewerk · Bayern/KVB',
-  ssb:         'Sprechstundenbedarf & Impfen · V1.7',
-  abrechnung:  'Vorhalte- & Versorgungspauschale 2026',
-  nachschlagen:'Abkürzungen · GOPs · ICD-10 · Begriffe'
-};
-const MODULE_LABEL = { ssb: 'SSB & Impfen', abrechnung: 'Abrechnung 2026', nachschlagen: 'Nachschlagen' };
-
-let SEARCH_INDEX = [];
-
-/* ============================================================
-   NAVIGATION
-   ============================================================ */
-function navigateTo(view, { scroll = true } = {}) {
-  $$('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
-  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.view === view));
-  const sub = $('#header-sub'); if (sub) sub.textContent = SUBTITLE[view] || SUBTITLE.home;
-  if (scroll) window.scrollTo(0, 0);
+function parseHash() {
+  const h = location.hash || '#/start';
+  const parts = h.replace(/^#\//, '').split('/');
+  let sub = parts[1] || null;
+  if (sub) { try { sub = decodeURIComponent(sub); } catch (e) { /* Rohwert behalten → Unbekannt-Umleitung greift */ } }
+  return { view: parts[0] || 'start', sub };
 }
 
-function openSection(sectionEl) {
-  if (!sectionEl) return;
-  const body = sectionEl.querySelector('.section-body');
-  const chev = sectionEl.querySelector('.chevron');
-  const head = sectionEl.querySelector('.section-header');
-  if (body && !body.classList.contains('open')) {
-    body.classList.add('open'); if (chev) chev.classList.add('open');
-    if (head) head.setAttribute('aria-expanded', 'true');
+function route() {
+  if (currentHash !== null) scrollPos[currentHash] = window.scrollY;
+  const r = parseHash();
+  const known = ['start', 'abrechnung', 'ssb', 'lexikon', 'suche'];
+  if (!known.includes(r.view)) { location.replace('#/start'); return; }
+
+  $$('.view').forEach(v => v.classList.remove('active'));
+  $('#view-' + r.view).classList.add('active');
+
+  if (r.view === 'abrechnung') showAbrechnung(r.sub);
+  if (r.view === 'ssb')        showSsb(r.sub);
+  if (r.view === 'lexikon')    showLexikon(r.sub);
+  if (r.view === 'suche')      showSuche();
+  if (r.view !== 'suche')      leaveSuche();
+
+  updateChrome(r);
+
+  const hash = location.hash || '#/start';
+  currentHash = hash;
+  if (pendingAnchor && pendingAnchor.hash === hash) {
+    const sel = pendingAnchor.sel;
+    pendingAnchor = null;
+    const el = document.querySelector(sel);
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollIntoView({ block: 'start' });
+        el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+        // Screenreader/Tastatur nicht im Leeren zurücklassen
+        el.setAttribute('tabindex', '-1');
+        el.focus({ preventScroll: true });
+      });
+      return;
+    }
   }
+  window.scrollTo(0, scrollPos[hash] || 0);
 }
 
-// Akkordeon-Kopf umschalten (Maus + Tastatur), inkl. ARIA-Status
-function toggleHeader(h) {
-  const body = h.nextElementSibling, chev = h.querySelector('.chevron');
-  const open = body.classList.toggle('open');
-  if (chev) chev.classList.toggle('open', open);
-  h.setAttribute('aria-expanded', open ? 'true' : 'false');
+/* Kopfbereich: Kontextleiste (Zurück + Titel), Tab-Markierung */
+function updateChrome(r) {
+  const bar = $('#contextbar');
+  const info = chromeInfo(r);
+  if (info) {
+    bar.hidden = false;
+    $('#back-link').setAttribute('href', info.back);
+    $('#back-label').textContent = info.backLabel;
+    $('#context-title').textContent = info.title;
+  } else {
+    bar.hidden = true;
+  }
+  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === r.view));
+  document.title = (info && info.title ? info.title + ' · ' : '') + 'Praxis';
 }
 
-// Abschnitts-Köpfe als bedienbare Buttons auszeichnen
-function enhanceAccordions() {
-  $$('.section-header').forEach(h => {
-    h.setAttribute('role', 'button');
-    h.setAttribute('tabindex', '0');
-    const body = h.nextElementSibling;
-    h.setAttribute('aria-expanded', body && body.classList.contains('open') ? 'true' : 'false');
-    const chev = h.querySelector('.chevron'); if (chev) chev.setAttribute('aria-hidden', 'true');
-  });
+function chromeInfo(r) {
+  if (r.view === 'start') return null;
+  if (r.view === 'suche') return { back: searchReturnHash, backLabel: 'Zurück', title: 'Suche' };
+  if (r.view === 'lexikon') return { back: '#/start', backLabel: 'Start', title: 'Lexikon' };
+  if (r.view === 'abrechnung') {
+    if (!r.sub) return { back: '#/start', backLabel: 'Start', title: 'Abrechnung 2026' };
+    const card = abCardById(r.sub);
+    return { back: '#/abrechnung', backLabel: 'Abrechnung', title: card ? card.title.replace(/^Fall \d · /, '') : 'Abrechnung 2026' };
+  }
+  if (r.view === 'ssb') {
+    if (!r.sub) return { back: '#/start', backLabel: 'Start', title: 'SSB & Impfen' };
+    const s = SSB_CHAPTERS.find(c => c.id === r.sub);
+    return { back: '#/ssb', backLabel: 'SSB & Impfen', title: s ? s.title : 'SSB & Impfen' };
+  }
+  return null;
 }
 
-function flash(el) {
-  if (!el) return;
-  el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+/* ============================== Abrechnung ============================== */
+const AB_GROUPS = [
+  { label: 'Teil 1 · Übersicht', ids: ['ab-ueberblick', 'ab-baum', 'ab-kriterien', 'ab-merkhilfe'] },
+  { label: 'Teil 2 · Acht Praxisfälle', ids: ['ab-fall1', 'ab-fall2', 'ab-fall3', 'ab-fall4', 'ab-fall5', 'ab-fall6', 'ab-fall7', 'ab-fall8'] },
+  { label: 'Anhang', ids: ['ab-quellen'] },
+];
+
+function abCardById(id) { return (window.ABRECHNUNG || []).find(c => c.id === id); }
+
+function abEyebrow(id) {
+  const m = id.match(/^ab-fall(\d)$/);
+  if (m) return 'Fall ' + m[1] + ' von 8';
+  if (id === 'ab-quellen') return 'Anhang';
+  return 'Teil 1 · Übersicht';
 }
 
-/* ============================================================
-   RENDERING: BLÖCKE (Abrechnung)
-   ============================================================ */
-function renderTable(b) {
-  const al = b.align || [];
-  const alStyle = i => al[i] === 'r' ? ' style="text-align:right;white-space:nowrap"' : '';
-  const ths = b.head.map((h, i) => `<th${alStyle(i)}>${h}</th>`).join('');
-  const trs = b.rows.map(r => '<tr>' + r.map((c, i) => `<td${alStyle(i)}>${c}</td>`).join('') + '</tr>').join('');
-  return `<div class="table-wrap"><table><thead><tr>${ths}</tr></thead><tbody>${trs}</tbody></table></div>`;
+function abSubtitle(card) {
+  const meta = card.blocks.find(b => b.t === 'casemeta');
+  if (meta) return meta.who + ' · ' + stripTags(meta.dx);
+  const p = card.blocks.find(b => b.t === 'p');
+  return p ? stripTags(p.html) : '';
 }
 
-function renderBlock(b) {
+function renderAbrechnungToc() {
+  const host = $('#abrechnung-toc');
+  let html = `<div class="view-head"><p class="eyebrow">Modul 01</p><h1>Abrechnung 2026</h1>
+    <p>Vorhalte- &amp; Versorgungspauschale · Praxishilfe MFA · Stand April 2026</p></div>`;
+  for (const g of AB_GROUPS) {
+    html += `<p class="home-label">${esc(g.label)}</p><div class="toc-list">`;
+    g.ids.forEach(id => {
+      const c = abCardById(id);
+      if (!c) return;
+      const fall = id.match(/^ab-fall(\d)$/);
+      const num = g.label === 'Anhang' ? '§' : String(fall ? +fall[1] : g.ids.indexOf(id) + 1).padStart(2, '0');
+      html += `<a class="toc-row" href="#/abrechnung/${id}">
+        <span class="module-num">${num}</span>
+        <span class="module-txt"><b>${esc(c.title.replace(/^Fall \d · /, ''))}</b><small>${esc(abSubtitle(c).slice(0, 96))}</small></span>
+        <span class="row-ch" aria-hidden="true">›</span></a>`;
+    });
+    html += `</div>`;
+  }
+  html += `<div class="app-footer">Eurowerte = Näherung (Punktwert 2026 ca. 12,4 ¢) · ohne Gewähr</div>`;
+  host.innerHTML = html;
+}
+
+function showAbrechnung(sub) {
+  const toc = $('#abrechnung-toc');
+  const chap = $('#abrechnung-chapter');
+  const card = sub ? abCardById(sub) : null;
+  if (!card) {
+    toc.hidden = false; chap.hidden = true;
+    if (sub) location.replace('#/abrechnung');
+    return;
+  }
+  toc.hidden = true; chap.hidden = false;
+  chap.innerHTML = renderCard(card) + chapterNav('abrechnung', AB_GROUPS.flatMap(g => g.ids), card.id,
+    id => (abCardById(id) || {}).title || id);
+}
+
+function renderCard(card) {
+  let html = `<header class="chapter-head"><p class="eyebrow accent">${esc(abEyebrow(card.id))}</p><h1>${esc(card.title.replace(/^Fall \d · /, ''))}</h1></header>`;
+  card.blocks.forEach((b, i) => { html += renderBlock(b, card.id + '-b' + i); });
+  return html;
+}
+
+function renderBlock(b, anchorId) {
+  const a = ` data-bi="${anchorId}"`;
   switch (b.t) {
-    case 'p':     return `<p>${b.html}</p>`;
-    case 'note':  return `<p style="font-size:12px;color:var(--gray-1)">${b.html}</p>`;
-    case 'h3':    return `<h3>${b.html}</h3>`;
-    case 'alert': return `<div class="alert alert-${b.level}">${b.title ? `<strong>${esc(b.title)}</strong>` : ''}${b.html}</div>`;
-    case 'table': return renderTable(b);
-    case 'steps': return `<ol class="step-list">${b.items.map(i => `<li>${i}</li>`).join('')}</ol>`;
-    case 'kpi':   return `<div class="kpi-grid">${b.items.map(i => `<div class="kpi"><div class="num ${i.color || ''}">${esc(i.num)}</div><div class="lab">${esc(i.lab)}</div></div>`).join('')}</div>`;
-    case 'casemeta':
-      return `<div class="case-meta"><span class="who">${esc(b.who)}</span><span class="pill ${b.level}">${esc(b.level)}</span></div><div class="dx">${esc(b.dx)}</div>`;
-    case 'cards':
-      return `<div class="grid-2">${b.items.map(c => `<div class="mini-card"><h4 style="color:${c.color || 'var(--text-2)'}">${esc(c.title)}</h4><div style="font-size:13px;line-height:1.5">${c.html}</div></div>`).join('')}</div>`;
+    case 'p': return `<p class="cb-p"${a}>${b.html}</p>`;
+    case 'h3': return `<h3 class="cb-h3"${a}>${b.html}</h3>`;
+    case 'note': return `<p class="note"${a}>${b.html}</p>`;
+    case 'alert': {
+      const lvl = ['info', 'warn', 'ok', 'critical'].includes(b.level) ? b.level : 'info';
+      return `<div class="alert alert-${lvl}"${a}><strong>${esc(b.title || '')}</strong> ${b.html}</div>`;
+    }
+    case 'steps':
+      return `<ol class="steps"${a}>` + b.items.map(s => `<li>${s}</li>`).join('') + `</ol>`;
     case 'checks':
-      return `<ul style="list-style:none;padding:0;margin:8px 0">${b.items.map(it =>
-        `<li style="padding:6px 0 6px 26px;position:relative;font-size:14px"><span style="position:absolute;left:3px;top:6px;font-weight:800;color:${it.ok ? 'var(--accent-green)' : 'var(--accent-red)'}">${it.ok ? '✓' : '✕'}</span>${it.html}</li>`
-      ).join('')}</ul>`;
+      return `<ul class="checks"${a}>` + b.items.map(it =>
+        `<li class="${it.ok ? 'c-ok' : 'c-no'}"><span class="dot" aria-hidden="true">${it.ok ? '✓' : '✕'}</span><span>${it.html}</span></li>`).join('') + `</ul>`;
+    case 'table': {
+      const al = b.align || [];
+      const cls = i => (al[i] === 'r' ? ' class="ta-r"' : '');
+      let t = `<div class="table-wrap"${a}><table><thead><tr>` +
+        b.head.map((h, i) => `<th${cls(i)}>${h}</th>`).join('') + `</tr></thead><tbody>`;
+      t += b.rows.map(row => `<tr>` + row.map((c, i) => {
+        const isGop = (b.head[i] || '').trim().toUpperCase() === 'GOP' && c && !/[<]/.test(c);
+        return `<td${cls(i)}>${isGop ? `<span class="code">${esc(c)}</span>` : c}</td>`;
+      }).join('') + `</tr>`).join('');
+      return t + `</tbody></table></div>`;
+    }
+    case 'kpi':
+      return `<div class="kpi-row"${a}>` + b.items.map(k =>
+        `<div class="kpi${k.color === 'red' ? ' warn' : ''}${k.color === 'green' ? ' ok' : ''}"><b>${esc(k.num)}</b><span>${esc(k.lab)}</span></div>`).join('') + `</div>`;
+    case 'casemeta': {
+      const initials = (b.who.match(/[A-ZÄÖÜ]/g) || []).slice(0, 2).join('');
+      return `<div class="casemeta"${a}><span class="avatar" aria-hidden="true">${esc(initials)}</span>
+        <span class="cm-txt"><b>${esc(b.who)}</b><small>${b.dx}</small></span>
+        <span class="badge level-${esc(b.level)}">${esc(b.level)}</span></div>`;
+    }
+    case 'cards':
+      return `<div class="grid-2"${a}>` + b.items.map(c =>
+        `<div class="mini-card" style="--card-accent:${esc(c.color || '#0F766E')}"><h4>${esc(c.title)}</h4><p>${c.html}</p></div>`).join('') + `</div>`;
     default: return '';
   }
 }
 
-function sectionHeaderHtml(iconName, title) {
-  return `<span class="sec-title"><span class="sec-ic">${chipInner(iconName)}</span><span class="sec-label">${esc(title)}</span></span><span class="chevron">›</span>`;
+function chapterNav(view, ids, id, titleOf) {
+  const i = ids.indexOf(id);
+  const prev = i > 0 ? ids[i - 1] : null;
+  const next = i >= 0 && i < ids.length - 1 ? ids[i + 1] : null;
+  const clean = t => esc(String(t).replace(/^Fall \d · /, ''));
+  let html = `<nav class="chapter-nav">`;
+  html += prev ? `<a class="cn cn-prev" href="#/${view}/${prev}"><small>‹ Vorheriges</small><b>${clean(titleOf(prev))}</b></a>` : `<span></span>`;
+  html += next ? `<a class="cn cn-next" href="#/${view}/${next}"><small>Nächstes ›</small><b>${clean(titleOf(next))}</b></a>` : `<span></span>`;
+  return html + `</nav>`;
 }
 
-function renderAbrechnung() {
-  const host = $('#abrechnung-list');
-  host.innerHTML = (window.ABRECHNUNG || []).map(card => `
-    <div class="section" id="${card.id}">
-      <div class="section-header">${sectionHeaderHtml(abIconFor(card.id), card.title)}</div>
-      <div class="section-body">${card.blocks.map(renderBlock).join('')}</div>
-    </div>`).join('');
+/* ============================== SSB & Impfen ============================== */
+let SSB_CHAPTERS = [];
+
+function initSsb() {
+  SSB_CHAPTERS = $$('#ssb-sections .section').map(sec => {
+    const head = sec.querySelector('.section-header span');
+    const title = stripEmoji(head ? head.textContent : sec.id);
+    const p = sec.querySelector('.section-body p');
+    return { id: sec.id, el: sec, title, teaser: p ? p.textContent.replace(/\s+/g, ' ').trim().slice(0, 96) : '' };
+  });
+  // Akkordeon-Köpfe durch Kapitel-Titel ersetzen
+  SSB_CHAPTERS.forEach((c, i) => {
+    const head = document.createElement('header');
+    head.className = 'chapter-head';
+    head.innerHTML = `<p class="eyebrow accent">Kapitel ${i + 1} von ${SSB_CHAPTERS.length}</p><h1>${esc(c.title)}</h1>`;
+    const oldHead = c.el.querySelector('.section-header');
+    if (oldHead) oldHead.replaceWith(head);
+  });
+  const host = $('#ssb-toc');
+  let html = `<div class="view-head"><p class="eyebrow">Modul 02</p><h1>SSB &amp; Impfen</h1>
+    <p>Sprechstundenbedarf &amp; Impfen · KVB-Seminar V1.7 · Stand Mai 2026</p></div><div class="toc-list">`;
+  SSB_CHAPTERS.forEach((c, i) => {
+    html += `<a class="toc-row" href="#/ssb/${c.id}">
+      <span class="module-num">${String(i + 1).padStart(2, '0')}</span>
+      <span class="module-txt"><b>${esc(c.title)}</b><small>${esc(c.teaser)}</small></span>
+      <span class="row-ch" aria-hidden="true">›</span></a>`;
+  });
+  host.innerHTML = html + `</div><div class="app-footer">KVB-Seminar V1.7 · Stand 05.05.2026 · ohne Gewähr</div>`;
 }
 
-// Statische SSB-Abschnitte mit Icon-Chips versehen (Emoji aus Titel entfernen)
-function decorateStaticSections() {
-  $$('#view-ssb .section').forEach(sec => {
-    const h = sec.querySelector('.section-header');
-    if (!h || h.querySelector('.sec-title')) return;
-    const span = h.querySelector('span:not(.chevron)');
-    if (!span) return;
-    const label = span.textContent.replace(/^[^\p{L}\p{N}]+/u, '').trim();
-    const name = SSB_ICON[sec.id] || 'bookmark';
-    h.innerHTML = sectionHeaderHtml(name, label);
+function showSsb(sub) {
+  const toc = $('#ssb-toc');
+  const wrap = $('#ssb-sections');
+  const nav = $('#ssb-chapter-nav');
+  const target = sub ? SSB_CHAPTERS.find(c => c.id === sub) : null;
+  if (!target) {
+    toc.hidden = false; wrap.hidden = true; nav.hidden = true; nav.innerHTML = '';
+    if (sub) location.replace('#/ssb');
+    return;
+  }
+  toc.hidden = true; wrap.hidden = false;
+  SSB_CHAPTERS.forEach(c => { c.el.hidden = c.id !== target.id; });
+  nav.hidden = false;
+  nav.innerHTML = chapterNav('ssb', SSB_CHAPTERS.map(c => c.id), target.id,
+    id => (SSB_CHAPTERS.find(c => c.id === id) || {}).title || id)
+    .replace(/^<nav class="chapter-nav">/, '').replace(/<\/nav>$/, '');
+}
+
+/* ============================== Lexikon ============================== */
+const LEX_CATS = [
+  { key: 'abk', label: 'Abkürzung', plural: 'Abkürzungen' },
+  { key: 'gops', label: 'GOP', plural: 'GOPs' },
+  { key: 'icd', label: 'ICD-10', plural: 'ICD-10' },
+  { key: 'begriffe', label: 'Begriff', plural: 'Fachbegriffe' },
+];
+let LEX = [];      // { cat, group, k, v, note, amount, hay, codes:Set }
+let lexCat = 'alle';
+
+/* "E78.0–E78.5", "M10.00–M10.99", "I10.00 / I10.90" -> alle Einzelcodes (normalisiert, mit und ohne Punkt) */
+function expandCodes(key) {
+  const out = new Set();
+  norm(key).split(/\s*\/\s*/).forEach(part => {
+    part = part.trim();
+    const range = part.match(/^([a-z])(\d+)\.(\d+)-([a-z])(\d+)\.(\d+)$/);
+    if (range && range[1] === range[4] && range[2] === range[5]) {
+      const letter = range[1], major = range[2], from = range[3], to = range[6];
+      const width = from.length;
+      for (let n = parseInt(from, 10); n <= parseInt(to, 10); n++) {
+        const minor = String(n).padStart(width, '0');
+        const code = `${letter}${major}.${minor}`;
+        out.add(code); out.add(dotless(code));
+        if (width > 1) { const short = `${letter}${major}.${minor[0]}`; out.add(short); out.add(dotless(short)); }
+      }
+      out.add(letter + major);
+    } else if (part) {
+      out.add(part); out.add(dotless(part));
+      const fam = part.match(/^([a-z]\d+)\./); if (fam) out.add(fam[1]);
+    }
+  });
+  return out;
+}
+
+function initLex() {
+  const N = window.NACHSCHLAGEN || {};
+  const push = (cat, group, e) => LEX.push({
+    cat, group: group || '', k: e.k, v: e.v, note: e.note || '', amount: e.amount || '',
+    hay: norm([e.k, e.v, e.note, e.amount].filter(Boolean).join(' ')) + ' ' + dotless(norm(e.k)),
+    codes: (cat === 'icd' || cat === 'gops') ? expandCodes(e.k) : new Set(),
+  });
+  (N.abk || []).forEach(e => push('abk', '', e));
+  (N.gops || []).forEach(g => g.items.forEach(e => push('gops', g.group, e)));
+  (N.icd || []).forEach(g => g.items.forEach(e => push('icd', g.group, e)));
+  (N.begriffe || []).forEach(e => push('begriffe', '', e));
+}
+
+function showLexikon(sub) {
+  const valid = ['abk', 'gops', 'icd', 'begriffe'];
+  lexCat = valid.includes(sub) ? sub : 'alle';
+  const stored = sessionStorage.getItem('lexQuery') || '';
+  sessionStorage.removeItem('lexQuery');
+  $('#lex-q').value = stored;
+  syncLexChips();
+  renderLex();
+}
+
+function syncLexChips() {
+  $$('#lex-chips .chip').forEach(c => {
+    const on = c.dataset.cat === lexCat;
+    c.classList.toggle('active', on);
+    c.setAttribute('aria-pressed', on);
   });
 }
 
-// Icons in Chrome-Elemente einsetzen (Tabs, Kacheln, Suche)
-function injectIcons() {
-  $$('.tab').forEach(t => { const ic = t.querySelector('.ic'); if (ic) ic.innerHTML = iconSvg(TAB_ICON[t.dataset.view]); });
-  $$('.tile-ic[data-icon]').forEach(el => { el.innerHTML = iconSvg(el.dataset.icon); });
-  $$('.si').forEach(el => { el.innerHTML = iconSvg('search'); });
-  const hs = $('#open-search'); if (hs) hs.innerHTML = iconSvg('search');
+function lexRow(e, q) {
+  const meta = [e.amount, e.note].filter(Boolean).map(esc).join(' · ');
+  return `<div class="lex-row">
+    <span class="code${e.cat === 'icd' ? ' code-icd' : ''}">${hl(e.k, q)}</span>
+    <span class="lex-txt"><span>${hl(e.v, q)}</span>${meta ? `<small>${meta}</small>` : ''}</span>
+  </div>`;
 }
 
-/* ============================================================
-   RENDERING: LEXIKON
-   ============================================================ */
-let lexTab = 'abk';
-
-function entryHtml(e, withAmount) {
-  const note = e.note ? `<span class="note">${esc(e.note)}</span>` : '';
-  const amt  = (withAmount && e.amount) ? `<span class="amount">${esc(e.amount)}</span>` : '';
-  return `<div class="entry"><span class="k">${esc(e.k)}</span><span class="v">${esc(e.v)}${note}</span>${amt}</div>`;
-}
-function begriffHtml(e) {
-  return `<div class="entry" style="flex-direction:column;gap:3px"><span class="k" style="color:var(--text);min-width:0">${esc(e.k)}</span><span class="v">${esc(e.v)}</span></div>`;
-}
-function matchEntry(e, q) {
-  if (!q) return true;
-  return (e.k + ' ' + e.v + ' ' + (e.note || '')).toLowerCase().includes(q);
-}
-function renderLexikon() {
-  const data = window.NACHSCHLAGEN;
-  const q = ($('#lex-filter').value || '').trim().toLowerCase();
+function renderLex() {
+  const qRaw = $('#lex-q').value.trim();
   const host = $('#lex-list');
+  const cats = lexCat === 'alle' ? LEX_CATS.map(c => c.key) : [lexCat];
   let html = '';
-  if (lexTab === 'abk') {
-    const items = data.abk.filter(e => matchEntry(e, q));
-    html = items.length ? `<div class="entry-list">${items.map(e => entryHtml(e, false)).join('')}</div>` : '<div class="entry-empty">Kein Treffer.</div>';
-  } else if (lexTab === 'begriffe') {
-    const items = data.begriffe.filter(e => matchEntry(e, q));
-    html = items.length ? `<div class="entry-list">${items.map(begriffHtml).join('')}</div>` : '<div class="entry-empty">Kein Treffer.</div>';
-  } else {
-    const groups = data[lexTab];
-    const withAmount = lexTab === 'gops';
-    let any = false;
-    html = groups.map(g => {
-      const items = g.items.filter(e => matchEntry(e, q));
-      if (!items.length) return '';
-      any = true;
-      return `<div class="group-label">${esc(g.group)}</div><div class="entry-list">${items.map(e => entryHtml(e, withAmount)).join('')}</div>`;
-    }).join('');
-    if (!any) html = '<div class="entry-empty">Kein Treffer.</div>';
+
+  for (const key of cats) {
+    const cat = LEX_CATS.find(c => c.key === key);
+    let entries = LEX.filter(e => e.cat === key);
+    if (qRaw) entries = entries.filter(e => lexMatch(e, qRaw));
+    if (!entries.length) continue;
+    html += `<p class="home-label">${esc(cat.plural)}${qRaw ? ' · ' + entries.length : ''}</p>`;
+    let lastGroup = null;
+    html += `<div class="lex-group">`;
+    for (const e of entries) {
+      if (e.group && e.group !== lastGroup && !qRaw) { html += `<p class="lex-subhead">${esc(e.group)}</p>`; lastGroup = e.group; }
+      html += lexRow(e, qRaw);
+    }
+    html += `</div>`;
+  }
+
+  if (!html) {
+    const other = lexCat !== 'alle' && qRaw
+      ? LEX.filter(e => e.cat !== lexCat && lexMatch(e, qRaw)).length : 0;
+    html = `<div class="empty">Kein Treffer${qRaw ? ` für „${esc(qRaw)}“` : ''} in dieser Kategorie.` +
+      (other ? ` <button class="linklike" id="lex-all-btn">${other} Treffer in allen Kategorien anzeigen</button>` : '') + `</div>`;
   }
   host.innerHTML = html;
+  const btn = $('#lex-all-btn');
+  if (btn) btn.addEventListener('click', () => { lexCat = 'alle'; syncLexChips(); renderLex(); });
 }
 
-/* ============================================================
-   SUCH-INDEX
-   ============================================================ */
-function lexEntry(e, tab, groupLabel, amount) {
-  return {
-    module: 'nachschlagen', moduleLabel: 'Nachschlagen',
-    title: e.k + (amount ? ' · ' + amount : ''),
-    text: e.v + (e.note ? ' (' + e.note + ')' : '') + ' · ' + groupLabel,
-    viewId: 'nachschlagen', lexTab: tab, key: e.k
-  };
+function lexMatch(e, qRaw) {
+  return tokenGroups(qRaw).every(alts =>
+    alts.some(t => hasTok(e.hay, t) || e.codes.has(t) || codePrefix(e, t)));
 }
-function buildSearchIndex() {
-  const idx = [];
-  [['view-ssb', 'ssb'], ['view-abrechnung', 'abrechnung']].forEach(([viewId, view]) => {
-    $$('#' + viewId + ' .section').forEach(sec => {
-      const titleEl = sec.querySelector('.section-header .sec-label') || sec.querySelector('.section-header span');
-      const bodyEl  = sec.querySelector('.section-body');
-      idx.push({
-        module: view, moduleLabel: MODULE_LABEL[view],
-        title: titleEl ? titleEl.textContent.trim() : '',
-        text: bodyEl ? bodyEl.textContent.replace(/\s+/g, ' ').trim() : '',
-        viewId: view, anchor: sec.id
+function codePrefix(e, t) {
+  if (!/^[a-z]\d/.test(t)) return false;
+  for (const c of e.codes) if (c.startsWith(t) || t.startsWith(c)) return true;
+  return false;
+}
+
+/* ============================== Such-Index ============================== */
+let INDEX = [];
+
+function catLabel(item) {
+  if (item.type === 'lex') return LEX_CATS.find(c => c.key === item.cat).label;
+  if (item.type === 'ab') return 'Abrechnung';
+  return 'SSB & Impfen';
+}
+
+function buildIndex() {
+  INDEX = [];
+  // Lexikon: jeder Eintrag einzeln
+  LEX.forEach(e => INDEX.push({
+    type: 'lex', cat: e.cat, title: e.k, sub: e.v,
+    hay: e.hay, codes: e.codes, titleN: norm(e.k),
+    go() {
+      sessionStorage.setItem('lexQuery', e.k);
+      const target = '#/lexikon/' + e.cat;
+      if (location.hash === target) showLexikon(e.cat); else location.hash = target;
+    },
+  }));
+  // Abrechnung: Kapitel + jeder Block einzeln
+  (window.ABRECHNUNG || []).forEach(card => {
+    const cardTitle = card.title.replace(/^Fall \d · /, '');
+    INDEX.push({
+      type: 'ab', title: card.title, sub: abSubtitle(card).slice(0, 140),
+      hay: norm(card.title + ' ' + abSubtitle(card)), codes: new Set(), titleN: norm(card.title),
+      go() { location.hash = '#/abrechnung/' + card.id; },
+    });
+    card.blocks.forEach((b, i) => {
+      const text = blockText(b);
+      if (!text) return;
+      const title = (b.t === 'alert' && b.title) ? b.title : (b.t === 'h3' ? stripTags(b.html) : cardTitle);
+      const sel = `[data-bi="${card.id}-b${i}"]`;
+      INDEX.push({
+        type: 'ab', title, sub: text.slice(0, 160), context: cardTitle,
+        hay: norm(title + ' ' + text) + ' ' + dotless(norm(text)), codes: new Set(), titleN: norm(title),
+        go() { jumpToAnchor('#/abrechnung/' + card.id, sel); },
       });
     });
   });
-  const N = window.NACHSCHLAGEN;
-  N.abk.forEach(e => idx.push(lexEntry(e, 'abk', 'Abkürzung')));
-  N.begriffe.forEach(e => idx.push(lexEntry(e, 'begriffe', 'Begriff')));
-  N.gops.forEach(g => g.items.forEach(e => idx.push(lexEntry(e, 'gops', g.group, e.amount))));
-  N.icd.forEach(g => g.items.forEach(e => idx.push(lexEntry(e, 'icd', g.group))));
-  SEARCH_INDEX = idx;
-}
-
-/* ============================================================
-   SUCHE (Overlay)
-   ============================================================ */
-function snippet(text, q) {
-  const low = text.toLowerCase();
-  let i = low.indexOf(q);
-  if (i < 0) return esc(text.slice(0, 110));
-  const from = Math.max(0, i - 40);
-  const seg = (from > 0 ? '… ' : '') + text.slice(from, i + q.length + 70);
-  const out = esc(seg);
-  const eq = esc(text.substr(i, q.length));
-  return out.replace(eq, `<mark class="search-hl">${eq}</mark>`);
-}
-
-function runSearch(qRaw) {
-  const q = (qRaw || '').trim().toLowerCase();
-  const host = $('#search-results');
-  if (q.length < 2) {
-    host.innerHTML = '<div class="sr-hint"><div class="big">🔍</div><div>Tippe einen Begriff ein —<br>z. B. „Hepatitis", „03100", „Impflücke", „MFA".</div></div>';
-    return;
-  }
-  const hits = SEARCH_INDEX
-    .map(e => {
-      const inTitle = e.title.toLowerCase().includes(q);
-      const inText  = e.text.toLowerCase().includes(q);
-      if (!inTitle && !inText) return null;
-      return { e, score: (inTitle ? 0 : 1) };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.score - b.score);
-
-  if (!hits.length) {
-    host.innerHTML = '<div class="sr-empty"><div class="big">🤷</div><div>Kein Ergebnis für „' + esc(qRaw) + '".</div></div>';
-    return;
-  }
-
-  const order = ['ssb', 'abrechnung', 'nachschlagen'];
-  let html = '';
-  order.forEach(mod => {
-    const group = hits.filter(h => h.e.module === mod);
-    if (!group.length) return;
-    html += `<div class="sr-group">${MODULE_LABEL[mod]} · ${group.length}</div>`;
-    group.slice(0, 40).forEach(({ e }) => {
-      const payload = encodeURIComponent(JSON.stringify({ v: e.viewId, a: e.anchor || '', lt: e.lexTab || '', k: e.key || '' }));
-      html += `<button class="sr-item" data-jump="${payload}">
-        <div class="t">${esc(e.title)}</div>
-        <div class="c">${snippet(e.text, q)}</div>
-        <div class="m">${esc(e.moduleLabel)}</div>
-      </button>`;
+  // SSB: Kapitel + Unterabschnitte (h4-Chunks, Tabellen, Alerts)
+  SSB_CHAPTERS.forEach(ch => {
+    INDEX.push({
+      type: 'ssb', title: ch.title, sub: ch.teaser,
+      hay: norm(ch.title + ' ' + ch.teaser), codes: new Set(), titleN: norm(ch.title),
+      go() { location.hash = '#/ssb/' + ch.id; },
+    });
+    const body = ch.el.querySelector('.section-body');
+    if (!body) return;
+    let currentH4 = '', si = 0;
+    Array.from(body.querySelectorAll(':scope > *')).forEach(el => {
+      if (el.tagName === 'H4') { currentH4 = el.textContent.trim(); return; }
+      const text = el.textContent.replace(/\s+/g, ' ').trim();
+      if (text.length < 25) return;
+      const id = `${ch.id}-s${si++}`;
+      el.setAttribute('data-si', id);
+      const title = currentH4 || ch.title;
+      const sel = `[data-si="${id}"]`;
+      INDEX.push({
+        type: 'ssb', title, sub: text.slice(0, 160), context: ch.title,
+        hay: norm(title + ' ' + text) + ' ' + dotless(norm(text)), codes: new Set(), titleN: norm(title),
+        go() { jumpToAnchor('#/ssb/' + ch.id, sel); },
+      });
     });
   });
-  host.innerHTML = html;
 }
 
-function jumpTo(p) {
-  closeSearch();
-  navigateTo(p.v);
-  setTimeout(() => {
-    if (p.v === 'nachschlagen') {
-      if (p.lt) setLexTab(p.lt);
-      const f = $('#lex-filter'); f.value = p.k || ''; renderLexikon();
-      const first = $('#lex-list .entry'); if (first) { first.scrollIntoView({ block: 'center' }); flash(first); }
-    } else if (p.a) {
-      const sec = document.getElementById(p.a);
-      if (sec) { openSection(sec); sec.scrollIntoView({ block: 'start' }); flash(sec); }
+function blockText(b) {
+  switch (b.t) {
+    case 'p': case 'h3': case 'note': return stripTags(b.html);
+    case 'alert': return stripTags((b.title || '') + ' ' + b.html);
+    case 'steps': return b.items.map(stripTags).join(' · ');
+    case 'checks': return b.items.map(i => stripTags(i.html)).join(' · ');
+    case 'table': return b.head.map(h => stripTags(String(h))).join(' ') + ' ' +
+      b.rows.map(r => r.map(c => stripTags(String(c))).join(' ')).join(' · ');
+    case 'kpi': return b.items.map(k => k.num + ' ' + k.lab).join(' · ');
+    case 'casemeta': return b.who + ' ' + stripTags(b.dx);
+    case 'cards': return b.items.map(c => c.title + ' ' + stripTags(c.html)).join(' · ');
+    default: return '';
+  }
+}
+
+function jumpToAnchor(hash, sel) {
+  pendingAnchor = { hash, sel };
+  if (location.hash === hash) route(); else location.hash = hash;
+}
+
+/* ============================== Suche ============================== */
+/* Kurze Tokens (< 4 Zeichen, z. B. „au“, „rr“, „qz“) nur an Wortgrenzen matchen,
+   sonst trifft „au“ jede „Pauschale“. Längere Tokens als Substring. */
+const tokRe = {};
+function hasTok(hay, t) {
+  if (t.length >= 4) return hay.includes(t);
+  let re = tokRe[t];
+  if (!re) re = tokRe[t] = new RegExp('(^|[^a-z0-9])' + t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^a-z0-9])');
+  return re.test(hay);
+}
+
+function tokenGroups(qRaw) {
+  const ALIAS = window.SUCHE_ALIASE || {};
+  const tokens = norm(qRaw).split(/[\s,;]+/).filter(t => t.length >= 2);
+  return tokens.map(t => {
+    const alts = new Set([t, dotless(t)]);
+    // Flexions-Toleranz: „qualifizierenden“ ⇄ „qualifizierende“
+    if (t.length >= 6) { alts.add(t.slice(0, -1)); alts.add(t.slice(0, -2)); }
+    const aliasKey = Object.keys(ALIAS).find(k => t === k || (t.length >= 5 && t.startsWith(k)));
+    if (aliasKey) ALIAS[aliasKey].forEach(x => alts.add(norm(x)));
+    return Array.from(alts).filter(x => x.length >= 2);
+  }).filter(g => g.length);
+}
+
+function search(qRaw) {
+  const groups = tokenGroups(qRaw);
+  if (!groups.length) return [];
+  const qN = norm(qRaw), qCode = dotless(qN);
+  const hits = [];
+  for (const item of INDEX) {
+    let ok = true, score = 0;
+    for (const alts of groups) {
+      let matched = 0;
+      for (const t of alts) {
+        if (item.codes.has(t)) { matched = Math.max(matched, 40); break; }
+        if (hasTok(item.titleN, t)) { matched = Math.max(matched, 25); }
+        else if (hasTok(item.hay, t)) { matched = Math.max(matched, 8); }
+        else if (/^[a-z]\d/.test(t)) {
+          // „E78.2“ ⊂ Bereich E78.0–E78.5 · „E03.2“ → Familie E03 (Code ohne Punkt = Familie)
+          for (const c of item.codes) if (c.startsWith(t) || (!c.includes('.') && c.length >= 3 && t.startsWith(c))) { matched = Math.max(matched, 20); break; }
+        }
+      }
+      if (!matched) { ok = false; break; }
+      score += matched;
     }
-  }, 80);
+    if (!ok) continue;
+    if (item.titleN === qN || item.codes.has(qCode) || item.codes.has(qN)) score += 100;
+    if (item.titleN.startsWith(qN)) score += 45;
+    if (item.type === 'lex') score += 6;
+    hits.push({ item, score });
+  }
+  hits.sort((a, b) => b.score - a.score);
+  return hits.slice(0, 30);
 }
 
-let searchTrigger = null;
-function openSearch() {
-  searchTrigger = document.activeElement;
-  const ov = $('#search-overlay');
-  ov.classList.add('open'); ov.removeAttribute('inert'); ov.setAttribute('aria-hidden', 'false');
-  const inp = $('#search-input'); inp.value = ''; runSearch('');
-  setTimeout(() => inp.focus(), 120);
-}
-function closeSearch() {
-  const ov = $('#search-overlay');
-  if (!ov.classList.contains('open')) return;
-  ov.classList.remove('open'); ov.setAttribute('inert', ''); ov.setAttribute('aria-hidden', 'true');
-  $('#search-input').blur();
-  if (searchTrigger && typeof searchTrigger.focus === 'function') { try { searchTrigger.focus(); } catch (e) {} }
+function hl(text, qRaw) {
+  let out = esc(String(text));
+  if (!qRaw) return out;
+  const words = qRaw.trim().split(/[\s,;]+/).filter(w => w.length >= 2)
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!words.length) return out;
+  try { out = out.replace(new RegExp('(' + words.join('|') + ')', 'gi'), '<mark>$1</mark>'); } catch (e) { /* noop */ }
+  return out;
 }
 
-/* ============================================================
-   LEXIKON-TABS
-   ============================================================ */
-function setLexTab(tab) {
-  lexTab = tab;
-  $$('#lex-seg button').forEach(b => {
-    const on = b.dataset.lex === tab;
-    b.classList.toggle('active', on);
-    b.setAttribute('aria-selected', on ? 'true' : 'false');
-  });
+const SEARCH_SHORTCUTS = [
+  { label: 'Die 4 qualifizierenden Diagnosen', hash: '#/start', sel: '.dx-card' },
+  { label: 'Entscheidungsbaum', hash: '#/abrechnung/ab-baum' },
+  { label: 'Die 10 Kriterien', hash: '#/abrechnung/ab-kriterien' },
+  { label: 'Impfstoff-Übersicht', hash: '#/ssb/impf-tabelle' },
+  { label: 'GOP-Werte in €', hash: '#/lexikon/gops' },
+  { label: 'ICD-10-Codes', hash: '#/lexikon/icd' },
+];
+function shortcutChips() {
+  return `<div class="shortcut-wrap">` +
+    SEARCH_SHORTCUTS.map((s, i) => `<a class="chip chip-link" href="${s.hash}" data-shortcut="${i}">${esc(s.label)}</a>`).join('') + `</div>`;
 }
 
-/* ============================================================
-   INIT
-   ============================================================ */
-function init() {
-  renderAbrechnung();
-  decorateStaticSections();
-  enhanceAccordions();
-  renderLexikon();
-  injectIcons();
-  buildSearchIndex();
+let lastSearchQuery = '';
+let pushedSearch = false;
+let searchEnteredByUser = false;
 
-  $('#tabbar').addEventListener('click', e => {
-    const tab = e.target.closest('.tab'); if (tab) navigateTo(tab.dataset.view);
-  });
-  $$('[data-goto]').forEach(el => el.addEventListener('click', () => navigateTo(el.dataset.goto)));
+function showSuche() {
+  $('#q-cancel').hidden = false;
+  // Nur bei Rückkehr per History (Zurück-Geste aus einem Treffer) die letzte
+  // Anfrage wiederherstellen — beim aktiven Antippen des Felds leer starten.
+  if (!searchEnteredByUser && !$('#q').value && lastSearchQuery) $('#q').value = lastSearchQuery;
+  searchEnteredByUser = false;
+  renderSearch();
+}
+function leaveSuche() {
+  $('#q-cancel').hidden = true;
+  pushedSearch = false;
+  if ($('#q').value) { lastSearchQuery = $('#q').value; $('#q').value = ''; }
+}
 
-  document.body.addEventListener('click', e => {
-    const h = e.target.closest('.section-header');
-    if (h) toggleHeader(h);
+function renderSearch() {
+  const q = $('#q').value.trim();
+  const host = $('#search-results');
+  if (q.length < 2) {
+    host.innerHTML = `<div class="view-head"><h1>Suche</h1><p>Tippe einen ICD-Code (E06.3), eine GOP (03100), eine Abkürzung oder ein Stichwort — auch „Blutdruck“ oder „Gicht“ funktionieren.</p></div>
+      <p class="home-label">Direkt hinspringen</p>` + shortcutChips();
+    return;
+  }
+  const hits = search(q);
+  if (!hits.length) {
+    host.innerHTML = `<div class="empty" role="status"><b>Keine Treffer für „${esc(q)}“.</b><br>
+      Versuch es mit einem ICD-Code (z.&nbsp;B. <span class="code">E06.3</span>), einer GOP (<span class="code">03100</span>) oder einem anderen Stichwort.</div>
+      <p class="home-label">Oder direkt hinspringen</p>` + shortcutChips();
+    return;
+  }
+  host.innerHTML = `<p class="home-label" role="status">${hits.length === 30 ? '30+' : hits.length} Treffer</p><div class="result-list">` +
+    hits.map((h, i) => {
+      const it = h.item;
+      const ctx = it.context ? ` <span class="result-ctx">· ${esc(it.context)}</span>` : '';
+      return `<button class="result-row" data-hit="${i}">
+        <span class="result-cat cat-${it.type === 'lex' ? esc(it.cat) : esc(it.type)}">${esc(catLabel(it))}</span>
+        <span class="result-txt"><b>${hl(it.title, q)}${ctx}</b><small>${hl(it.sub, q)}</small></span>
+      </button>`;
+    }).join('') + `</div>`;
+  $$('#search-results .result-row').forEach(btn =>
+    btn.addEventListener('click', () => hits[+btn.dataset.hit].item.go()));
+}
+
+/* ============================== Events & Start ============================== */
+function initEvents() {
+  window.addEventListener('hashchange', route);
+
+  const q = $('#q');
+  const toSearch = () => {
+    if (parseHash().view !== 'suche') {
+      searchReturnHash = location.hash || '#/start';
+      pushedSearch = true;
+      searchEnteredByUser = true;
+      location.hash = '#/suche';
+    }
+  };
+  // Bewusst kein focus-Listener (WCAG 3.2.1): Tab-Fokus allein wechselt keine Ansicht.
+  q.addEventListener('click', toSearch);
+  q.addEventListener('input', () => { toSearch(); renderSearch(); });
+  q.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { toSearch(); q.blur(); }
+    if (e.key === 'Escape') $('#q-cancel').click();
   });
-  document.body.addEventListener('keydown', e => {
-    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
-    const h = e.target.closest('.section-header');
-    if (h) { e.preventDefault(); toggleHeader(h); }
+  $('#q-cancel').addEventListener('click', () => {
+    q.value = '';
+    lastSearchQuery = '';
+    // Kein zusätzlicher History-Eintrag: die Zurück-Geste soll die Suche nicht erneut zeigen
+    if (pushedSearch) history.back();
+    else location.hash = (searchReturnHash && searchReturnHash !== '#/suche') ? searchReturnHash : '#/start';
   });
 
-  $('#lex-seg').addEventListener('click', e => {
-    const b = e.target.closest('button'); if (!b) return;
-    setLexTab(b.dataset.lex); $('#lex-filter').value = ''; renderLexikon();
-  });
-  $('#lex-filter').addEventListener('input', renderLexikon);
-
-  $('#open-search').addEventListener('click', openSearch);
-  $('#home-search').addEventListener('click', openSearch);
-  $('#search-cancel').addEventListener('click', closeSearch);
-  $('#search-input').addEventListener('input', e => runSearch(e.target.value));
+  // Such-Shortcuts mit Ankerziel (z. B. Diagnosen-Karte auf der Startseite)
   $('#search-results').addEventListener('click', e => {
-    const it = e.target.closest('[data-jump]'); if (!it) return;
-    jumpTo(JSON.parse(decodeURIComponent(it.dataset.jump)));
+    const a = e.target.closest('[data-shortcut]');
+    if (!a) return;
+    const s = SEARCH_SHORTCUTS[+a.dataset.shortcut];
+    if (s && s.sel) { e.preventDefault(); jumpToAnchor(s.hash, s.sel); }
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeSearch(); });
 
-  navigateTo('home', { scroll: false });
+  $('#lex-q').addEventListener('input', renderLex);
+  $('#lex-chips').addEventListener('click', e => {
+    const chip = e.target.closest('.chip'); if (!chip) return;
+    lexCat = chip.dataset.cat;
+    sessionStorage.setItem('lexQuery', $('#lex-q').value);
+    const base = lexCat === 'alle' ? '#/lexikon' : '#/lexikon/' + lexCat;
+    // replace statt push: Kategorie-Wechsel soll die Zurück-Geste nicht aufblähen
+    if (location.hash !== base) location.replace(base);
+    else { sessionStorage.removeItem('lexQuery'); syncLexChips(); renderLex(); }
+  });
+
+  // Installierte App braucht keine Installationsanleitung
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  if (standalone) $('#install-card').hidden = true;
 }
 
-document.addEventListener('DOMContentLoaded', init);
-
-/* ============================================================
-   SERVICE WORKER (Offline)
-   ============================================================ */
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => { /* offline egal */ });
-  });
-}
+document.addEventListener('DOMContentLoaded', () => {
+  initLex();
+  initSsb();
+  renderAbrechnungToc();
+  buildIndex();
+  initEvents();
+  if (!location.hash) location.replace('#/start');
+  route();
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+});
