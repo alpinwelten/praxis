@@ -365,12 +365,16 @@ function renderLex() {
   const qRaw = $('#lex-q').value.trim();
   const host = $('#lex-list');
   const cats = lexCat === 'alle' ? LEX_CATS.map(c => c.key) : [lexCat];
+  // Über die GANZE Ansicht filtern, nicht pro Kategorie — sonst fällt eine
+  // einzelne leere Kategorie auf Substring zurück (Rauschen kehrt zurück)
+  // und der „X Treffer“-Zähler des Empty-State passt nicht zur Anzeige.
+  const pool = LEX.filter(e => cats.includes(e.cat));
+  const matched = qRaw ? lexFilter(pool, qRaw) : pool;
   let html = '';
 
   for (const key of cats) {
     const cat = LEX_CATS.find(c => c.key === key);
-    let entries = LEX.filter(e => e.cat === key);
-    if (qRaw) entries = lexFilter(entries, qRaw);
+    const entries = matched.filter(e => e.cat === key);
     if (!entries.length) continue;
     html += `<p class="home-label">${esc(cat.plural)}${qRaw ? ' · ' + entries.length : ''}</p>`;
     let lastGroup = null;
@@ -397,12 +401,15 @@ function renderLex() {
 function lexFilter(entries, qRaw) {
   const q1 = norm(qRaw);
   if (/^[a-z0-9]$/.test(q1)) return entries.filter(e => norm(e.k).startsWith(q1));
-  return entries.filter(e => lexMatch(e, qRaw));
+  const groups = tokenGroups(qRaw);
+  if (!groups.length) return entries;
+  const strict = entries.filter(e => lexMatch(e, groups, false));
+  return strict.length ? strict : entries.filter(e => lexMatch(e, groups, true));
 }
 
-function lexMatch(e, qRaw) {
-  return tokenGroups(qRaw).every(alts =>
-    alts.some(a => (a.strict ? hasTok : hasTokStart)(e.hay, a.s) || e.codes.has(a.s) || codePrefix(e, a.s)));
+function lexMatch(e, groups, loose) {
+  return groups.every(alts =>
+    alts.some(a => (a.strict ? hasTok : hasTokStart)(e.hay, a.s, loose) || e.codes.has(a.s) || codePrefix(e, a.s)));
 }
 function codePrefix(e, t) {
   if (!/^[a-z]\d/.test(t)) return false;
@@ -499,21 +506,34 @@ function jumpToAnchor(hash, sel) {
 }
 
 /* ============================== Suche ============================== */
-/* Kurze Tokens (< 4 Zeichen) differenziert matchen:
-   - Nutzereingaben wie „sy“ zählen als WORTANFANG („sy“ → Syndesmose), sonst
-     bricht die Suche beim Tippen zwischen 1 und 4 Buchstaben ein.
-   - Kurze Synonym-Aliase wie „au“/„rr“ nur als GANZES Wort, sonst trifft
-     „au“ jede „Pauschale“. Längere Tokens als Substring. */
+/* Tokens matchen an einer WORTGRENZE — nie frei schwebend mitten im Wort:
+   - Wortanfang: „kard“ → Kardiomyopathie, aber NICHT Myokardinfarkt/Perikarditis.
+   - Wortende (Komposita, ab 5 Zeichen): „spiegelung“ → Magenspiegelung,
+     „pauschale“ → Versorgungspauschale. Bis 2 Restzeichen sind erlaubt,
+     damit Plural/Fugenzeichen („embolie“ → Lungenembolien, „quartal“ →
+     Folgequartals) und die letzten Tastenschläge beim Tippen nicht sperren.
+     Erst ab 5 Zeichen, sonst fischt „kard“ über „des Myokards“ das
+     Perikarditis-Rauschen wieder herein.
+   Erst wenn die ganze Suche so leer bliebe, greift einmalig der
+   Substring-Fallback (loose). Kurze Synonym-Aliase wie „au“/„rr“ weiterhin
+   nur als GANZES Wort, sonst trifft „au“ jede „Pauschale“.
+   Caches ohne Prototype, sonst crasht die Eingabe „constructor“. */
 const escRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const tokReWord = {}, tokReStart = {};
-function hasTok(hay, t) {          // ganzes Wort (strenge Aliase)
-  if (t.length >= 4) return hay.includes(t);
+const tokReWord = Object.create(null), tokReStart = Object.create(null), tokReEdge = Object.create(null);
+function hasTok(hay, t, loose) {          // ganzes Wort (strenge Aliase)
+  if (t.length >= 4) return hasTokStart(hay, t, loose);
   let re = tokReWord[t];
   if (!re) re = tokReWord[t] = new RegExp('(^|[^a-z0-9])' + escRe(t) + '($|[^a-z0-9])');
   return re.test(hay);
 }
-function hasTokStart(hay, t) {     // Wortanfang (Nutzereingabe)
-  if (t.length >= 4) return hay.includes(t);
+function hasTokStart(hay, t, loose) {     // Wortgrenze (Nutzereingabe)
+  if (t.length >= 4) {
+    if (loose) return hay.includes(t);
+    let re = tokReEdge[t];
+    if (!re) re = tokReEdge[t] = new RegExp('(^|[^a-z0-9])' + escRe(t) +
+      (t.length >= 5 ? '|' + escRe(t) + '[a-z0-9]{0,2}($|[^a-z0-9])' : ''));
+    return re.test(hay);
+  }
   let re = tokReStart[t];
   if (!re) re = tokReStart[t] = new RegExp('(^|[^a-z0-9])' + escRe(t));
   return re.test(hay);
@@ -559,30 +579,35 @@ function search(qRaw) {
   }
   const groups = tokenGroups(qRaw);
   if (!groups.length) return [];
-  const hits = [];
-  for (const item of INDEX) {
-    let ok = true, score = 0;
-    for (const alts of groups) {
-      let matched = 0;
-      for (const a of alts) {
-        const t = a.s, fits = a.strict ? hasTok : hasTokStart;
-        if (item.codes.has(t)) { matched = Math.max(matched, 40); break; }
-        if (fits(item.titleN, t)) { matched = Math.max(matched, 25); }
-        else if (fits(item.hay, t)) { matched = Math.max(matched, 8); }
-        else if (/^[a-z]\d/.test(t)) {
-          // „E78.2“ ⊂ Bereich E78.0–E78.5 · „E03.2“ → Familie E03 (Code ohne Punkt = Familie)
-          for (const c of item.codes) if (c.startsWith(t) || (!c.includes('.') && c.length >= 3 && t.startsWith(c))) { matched = Math.max(matched, 20); break; }
+  const collect = loose => {
+    const hits = [];
+    for (const item of INDEX) {
+      let ok = true, score = 0;
+      for (const alts of groups) {
+        let matched = 0;
+        for (const a of alts) {
+          const t = a.s, fits = a.strict ? hasTok : hasTokStart;
+          if (item.codes.has(t)) { matched = Math.max(matched, 40); break; }
+          if (fits(item.titleN, t, loose)) { matched = Math.max(matched, 25); }
+          else if (fits(item.hay, t, loose)) { matched = Math.max(matched, 8); }
+          else if (/^[a-z]\d/.test(t)) {
+            // „E78.2“ ⊂ Bereich E78.0–E78.5 · „E03.2“ → Familie E03 (Code ohne Punkt = Familie)
+            for (const c of item.codes) if (c.startsWith(t) || (!c.includes('.') && c.length >= 3 && t.startsWith(c))) { matched = Math.max(matched, 20); break; }
+          }
         }
+        if (!matched) { ok = false; break; }
+        score += matched;
       }
-      if (!matched) { ok = false; break; }
-      score += matched;
+      if (!ok) continue;
+      if (item.titleN === qN || item.codes.has(qCode) || item.codes.has(qN)) score += 100;
+      if (item.titleN.startsWith(qN)) score += 45;
+      if (item.type === 'lex') score += 6;
+      hits.push({ item, score });
     }
-    if (!ok) continue;
-    if (item.titleN === qN || item.codes.has(qCode) || item.codes.has(qN)) score += 100;
-    if (item.titleN.startsWith(qN)) score += 45;
-    if (item.type === 'lex') score += 6;
-    hits.push({ item, score });
-  }
+    return hits;
+  };
+  let hits = collect(false);
+  if (!hits.length) hits = collect(true);
   hits.sort((a, b) => b.score - a.score);
   return hits.slice(0, 30);
 }

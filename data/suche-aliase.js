@@ -24,6 +24,7 @@ window.SUCHE_ALIASE = {
   allopurinol: ['gicht', 'm10'],
 
   zucker: ['diabetes', 'hba1c', 'e11'],
+  blutzucker: ['hba1c', 'diabetes', 'e11'],
   diabetes: ['e11', 'hba1c'],
 
   krankschreibung: ['arbeitsunfaehigkeit', 'au', '01630', 'eau'],
