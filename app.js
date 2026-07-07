@@ -309,6 +309,8 @@ function expandCodes(key) {
     } else if (part) {
       out.add(part); out.add(dotless(part));
       const fam = part.match(/^([a-z]\d+)\./); if (fam) out.add(fam[1]);
+      // GOPs werden mündlich ohne führende Null zugerufen: „3220“ ≙ 03220
+      if (/^0\d+$/.test(part)) out.add(part.replace(/^0+/, ''));
     }
   });
   return out;
@@ -316,12 +318,28 @@ function expandCodes(key) {
 
 function initLex() {
   const N = window.NACHSCHLAGEN || {};
-  const push = (cat, group, e) => LEX.push({
-    cat, group: group || '', k: e.k, v: e.v, note: e.note || '', amount: e.amount || '',
-    // syn: unsichtbare Suchbegriffe (Synonyme, Latein, gängige Falschschreibungen)
-    hay: norm([e.k, e.v, e.note, e.amount, e.syn].filter(Boolean).join(' ')) + ' ' + dotless(norm(e.k)),
-    codes: (cat === 'icd' || cat === 'gops') ? expandCodes(e.k) : new Set(),
-  });
+  const push = (cat, group, e) => {
+    const kN = norm(e.k);
+    // Bei GOPs/ICD ist e.k nur die Ziffer — der sichtbare Haupttext der Zeile
+    // ist der Leistungs-/Diagnosename in e.v (ohne Klammer-Zusätze). Er zählt
+    // deshalb zum Titel, sonst wäre der Weg Name → Nummer tot.
+    const vName = (cat === 'gops' || cat === 'icd')
+      ? ' ' + norm(String(e.v).replace(/\([^)]*\)/g, ' ')) : '';
+    LEX.push({
+      cat, group: group || '', k: e.k, v: e.v, note: e.note || '', amount: e.amount || '',
+      // thay: sichtbarer Titel — er entscheidet im Lexikon.
+      // shay: Titel + syn (unsichtbare Zweitnamen: Synonyme, Latein, gängige
+      //       Falschschreibungen) — greift erst ab 5 Zeichen Eingabe.
+      // hay:  Volltext — nur für die globale Suche (buildIndex).
+      thay: kN + vName + ' ' + dotless(kN),
+      shay: kN + vName + ' ' + norm(e.syn || '') + ' ' + dotless(kN),
+      // syns: jede syn-Phrase einzeln — kurze Eingaben (U7, VHF, RR) matchen
+      // nur eine KOMPLETTE Phrase, nie Füllwörter aus längeren Phrasen.
+      syns: new Set(norm(e.syn || '').split(/\s*,\s*/).filter(Boolean).flatMap(s => s === dotless(s) ? [s] : [s, dotless(s)])),
+      hay: norm([e.k, e.v, e.note, e.amount, e.syn].filter(Boolean).join(' ')) + ' ' + dotless(kN),
+      codes: (cat === 'icd' || cat === 'gops') ? expandCodes(e.k) : new Set(),
+    });
+  };
   (N.abk || []).forEach(e => push('abk', '', e));
   (N.gops || []).forEach(g => g.items.forEach(e => push('gops', g.group, e)));
   (N.icd || []).forEach(g => g.items.forEach(e => push('icd', g.group, e)));
@@ -389,29 +407,62 @@ function renderLex() {
   if (!html) {
     const other = lexCat !== 'alle' && qRaw
       ? lexFilter(LEX.filter(e => e.cat !== lexCat), qRaw).length : 0;
-    html = `<div class="empty">Kein Treffer${qRaw ? ` für „${esc(qRaw)}“` : ''} in dieser Kategorie.` +
-      (other ? ` <button class="linklike" id="lex-all-btn">${other} Treffer in allen Kategorien anzeigen</button>` : '') + `</div>`;
+    html = `<div class="empty">Kein Titel-Treffer${qRaw ? ` für „${esc(qRaw)}“` : ''}${lexCat !== 'alle' ? ' in dieser Kategorie' : ''}.` +
+      (other ? ` <button class="linklike" id="lex-all-btn">${other} Treffer in allen Kategorien anzeigen</button>` : '') +
+      (qRaw ? ` <button class="linklike" id="lex-suche-btn">In der Volltextsuche nach „${esc(qRaw)}“ suchen</button>` : '') + `</div>`;
   }
   host.innerHTML = html;
   const btn = $('#lex-all-btn');
   if (btn) btn.addEventListener('click', () => { lexCat = 'alle'; syncLexChips(); renderLex(); });
+  const sbtn = $('#lex-suche-btn');
+  if (sbtn) sbtn.addEventListener('click', () => {
+    const lq = $('#lex-q').value.trim();
+    $('#q').value = lq;
+    sessionStorage.setItem('lexQuery', lq);   // Zurück-Geste stellt die Anfrage wieder her
+    searchReturnHash = location.hash || '#/start';
+    pushedSearch = true;
+    searchEnteredByUser = true;   // showSuche darf die übergebene Anfrage nicht überschreiben
+    location.hash = '#/suche';
+  });
 }
 
-/* Ein einzelnes Zeichen filtert nach Anfangsbuchstabe des Eintrags („E“ → E03.0, EBM, EKG …) */
+/* Ein einzelnes Zeichen filtert nach Anfangsbuchstabe des Eintrags („E“ → E03.0, EBM, EKG …).
+   Ab 2 Zeichen entscheidet der SICHTBARE TITEL (bei GOPs/ICD inkl. des
+   Leistungs-/Diagnosenamens). Ab 5 Zeichen — also bei ganzen Wörtern, nicht
+   beim Tipp-Präfix — zählen zusätzlich die unsichtbaren Zweitnamen (syn):
+   „Angina“ findet die Tonsillitis, „se“ holt sie nicht in die S-Liste.
+   Beschreibungen werden im Lexikon bewusst NICHT durchsucht; dafür gibt es
+   die Volltextsuche (Absprung-Button im Kein-Treffer-Fall). */
 function lexFilter(entries, qRaw) {
   const q1 = norm(qRaw);
   if (/^[a-z0-9]$/.test(q1)) return entries.filter(e => norm(e.k).startsWith(q1));
-  const groups = tokenGroups(qRaw);
-  if (!groups.length) return entries;
-  const strict = entries.filter(e => lexMatch(e, groups, false));
-  return strict.length ? strict : entries.filter(e => lexMatch(e, groups, true));
+  let groups = tokenGroups(qRaw);
+  // „U 7“: Eingaben nur aus 1-Zeichen-Wörtern kompakt als ein Token werten —
+  // sonst zeigte das Lexikon alles als Treffer, die globale Suche nichts.
+  if (!groups.length) {
+    const compact = q1.replace(/[^a-z0-9]+/g, '');
+    if (compact.length >= 2) groups = tokenGroups(compact);
+    if (!groups.length) return [];
+  }
+  return entries.filter(e => lexMatch(e, groups));
 }
 
-function lexMatch(e, groups, loose) {
+function lexMatch(e, groups) {
   return groups.every(alts =>
-    alts.some(a => (a.strict ? hasTok : hasTokStart)(e.hay, a.s, loose) || e.codes.has(a.s) || codePrefix(e, a.s)));
+    alts.some(a => {
+      if (e.codes.has(a.s) || codePrefix(e, a.s)) return true;
+      if (a.s.length >= 5) return (a.strict ? hasTok : hasTokStart)(e.shay, a.s, false);
+      // Kurz getippt: Präfix zählt nur im Titel — aber ein exakt getipptes
+      // Kurzwort (U7, VHF, RR …) trifft seine komplette Zweitnamen-Phrase.
+      return (a.strict ? hasTok : hasTokStart)(e.thay, a.s, false) || e.syns.has(a.s);
+    }));
 }
 function codePrefix(e, t) {
+  if (/^\d{2,}$/.test(t)) {
+    // GOP-Präfix beim Tippen, auch ohne führende Null: „322“ → 03220/03221 …
+    for (const c of e.codes) if (c.startsWith(t)) return true;
+    return false;
+  }
   if (!/^[a-z]\d/.test(t)) return false;
   for (const c of e.codes) if (c.startsWith(t) || t.startsWith(c)) return true;
   return false;
@@ -594,6 +645,10 @@ function search(qRaw) {
             // „E78.2“ ⊂ Bereich E78.0–E78.5 · „E03.2“ → Familie E03 (Code ohne Punkt = Familie)
             for (const c of item.codes) if (c.startsWith(t) || (!c.includes('.') && c.length >= 3 && t.startsWith(c))) { matched = Math.max(matched, 20); break; }
           }
+          else if (/^\d{2,}$/.test(t)) {
+            // GOP-Präfix beim Tippen, auch ohne führende Null: „322“ → 03220 …
+            for (const c of item.codes) if (c.startsWith(t)) { matched = Math.max(matched, 20); break; }
+          }
         }
         if (!matched) { ok = false; break; }
         score += matched;
@@ -615,10 +670,20 @@ function search(qRaw) {
 function hl(text, qRaw) {
   let out = esc(String(text));
   if (!qRaw) return out;
-  const words = qRaw.trim().split(/[\s,;]+/).filter(w => w.length >= 2)
-    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const words = qRaw.trim().split(/[\s,;]+/).filter(w => w.length >= 2);
   if (!words.length) return out;
-  try { out = out.replace(new RegExp('(' + words.join('|') + ')', 'gi'), '<mark>$1</mark>'); } catch (e) { /* noop */ }
+  // Nur an Wortgrenzen markieren — „se“ soll nicht mitten in „Kassenärztliche“
+  // aufleuchten. Wortende mit 2 Restzeichen ab 5 Zeichen, wie die Suche selbst.
+  // Capture-Gruppe statt Lookbehind: Lookbehind kann Safari erst ab iOS 16.4.
+  const L = 'A-Za-z0-9ÄÖÜäöüß';
+  const escd = words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const tails = words.filter(w => w.length >= 5).map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  const re = `(^|[^${L}])(${escd.join('|')})` +
+    (tails.length ? `|(${tails.join('|')})(?=[${L}]{0,2}(?:[^${L}]|$))` : '');
+  try {
+    out = out.replace(new RegExp(re, 'gi'), (m, pre, ws, tw) =>
+      ws !== undefined ? pre + '<mark>' + ws + '</mark>' : '<mark>' + tw + '</mark>');
+  } catch (e) { /* noop */ }
   return out;
 }
 
